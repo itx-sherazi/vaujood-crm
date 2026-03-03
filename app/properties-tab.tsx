@@ -396,10 +396,10 @@ export default function PropertiesTab({
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0 flex-1 space-y-0.5">
-                    <h3 className="truncate text-sm font-semibold text-zinc-800">
+                    <h3 className="break-words text-sm font-semibold text-zinc-800">
                       {property.name}
                     </h3>
-                    <p className="truncate text-xs text-zinc-500">
+                    <p className="break-words text-xs text-zinc-500">
                       {property.location}
                     </p>
                   </div>

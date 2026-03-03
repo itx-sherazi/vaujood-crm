@@ -3,6 +3,11 @@
 import { ObjectId } from "mongodb";
 import { revalidatePath } from "next/cache";
 import { getDb } from "../lib/mongodb";
+import {
+  createCalendarEvent,
+  updateCalendarEvent,
+  deleteCalendarEvent,
+} from "../lib/google-calendar";
 
 export interface Reminder {
   _id?: string;
@@ -11,11 +16,13 @@ export interface Reminder {
   leadId?: string | null;
   propertyId?: string | null;
   notes?: string;
+  /** Google Calendar event id when synced */
+  googleEventId?: string | null;
 }
 
 const COLLECTION = "reminders";
 
-function toReminder(doc: { _id: { toString(): string }; title?: string; reminderAt?: Date; leadId?: string; propertyId?: string; notes?: string }): Reminder {
+function toReminder(doc: { _id: { toString(): string }; title?: string; reminderAt?: Date; leadId?: string; propertyId?: string; notes?: string; googleEventId?: string | null }): Reminder {
   return {
     _id: doc._id.toString(),
     title: doc.title ?? "",
@@ -23,6 +30,7 @@ function toReminder(doc: { _id: { toString(): string }; title?: string; reminder
     leadId: doc.leadId ?? null,
     propertyId: doc.propertyId ?? null,
     notes: doc.notes ?? "",
+    googleEventId: doc.googleEventId ?? null,
   };
 }
 
@@ -64,15 +72,32 @@ export async function createReminder(formData: FormData) {
     minutes = min ?? 0;
   }
   const reminderAt = new Date(y, m - 1, d, hours, minutes, 0, 0);
+  const endAt = new Date(reminderAt.getTime() + 30 * 60 * 1000);
 
-  await col.insertOne({
+  const doc = {
     title,
     reminderAt,
     leadId: leadId || null,
     propertyId: propertyId || null,
     notes,
+    googleEventId: null as string | null,
     createdAt: new Date(),
+  };
+  const result = await col.insertOne(doc);
+
+  const eventId = await createCalendarEvent({
+    title,
+    startTime: reminderAt,
+    endTime: endAt,
+    description: notes || undefined,
   });
+  if (eventId) {
+    await col.updateOne(
+      { _id: result.insertedId },
+      { $set: { googleEventId: eventId } },
+    );
+  }
+
   revalidatePath("/");
 }
 
@@ -102,6 +127,19 @@ export async function updateReminder(formData: FormData) {
     minutes = min ?? 0;
   }
   const reminderAt = new Date(y, m - 1, d, hours, minutes, 0, 0);
+  const endAt = new Date(reminderAt.getTime() + 30 * 60 * 1000);
+
+  const existing = await col.findOne({ _id: new ObjectId(id) }) as { googleEventId?: string } | null;
+  const googleEventId = existing?.googleEventId;
+
+  if (googleEventId) {
+    await updateCalendarEvent(googleEventId, {
+      title,
+      startTime: reminderAt,
+      endTime: endAt,
+      description: notes || undefined,
+    });
+  }
 
   await col.updateOne(
     { _id: new ObjectId(id) },
@@ -123,6 +161,10 @@ export async function deleteReminder(id: string) {
   if (!id) return;
   const db = await getDb();
   const col = db.collection(COLLECTION);
+  const doc = await col.findOne({ _id: new ObjectId(id) }) as { googleEventId?: string } | null;
+  if (doc?.googleEventId) {
+    await deleteCalendarEvent(doc.googleEventId);
+  }
   await col.deleteOne({ _id: new ObjectId(id) });
   revalidatePath("/");
 }

@@ -66,15 +66,14 @@ export default function KanbanTab({ initialLeads }: KanbanTabProps) {
         </p>
       </div>
 
-      <div className="-mx-2 overflow-x-auto px-2 pb-2 sm:mx-0 sm:px-0">
-        <div className="flex min-w-[1480px] gap-3 xl:min-w-0 xl:grid xl:grid-cols-7">
-          {STAGE_COLUMNS.map((column) => (
-            <section
-              key={column.id}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={() => onDrop(column.id)}
-              className={`flex min-h-[260px] min-w-[180px] flex-1 flex-col rounded-xl border-2 bg-white shadow-sm xl:min-w-0 ${column.accent}`}
-            >
+      <div className="flex flex-col gap-3">
+        {STAGE_COLUMNS.map((column) => (
+          <section
+            key={column.id}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={() => onDrop(column.id)}
+            className={`flex min-h-[260px] w-full flex-col rounded-xl border-2 bg-white shadow-sm ${column.accent}`}
+          >
               <header className="flex items-center justify-between gap-2 border-b border-zinc-200 px-3 py-2.5">
                 <div className="flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full bg-emerald-500" />
@@ -87,19 +86,20 @@ export default function KanbanTab({ initialLeads }: KanbanTabProps) {
                 </span>
               </header>
 
-              <div className="flex-1 space-y-2 overflow-y-auto px-3 py-3">
+              <div className="flex-1 overflow-x-auto px-3 py-3">
                 {leadsByStage(column.id).length === 0 ? (
                   <div className="flex min-h-[120px] items-center justify-center rounded-lg border border-dashed border-zinc-200 bg-zinc-50/80 px-2 py-6 text-center text-[11px] text-zinc-500">
                     No leads
                   </div>
                 ) : (
-                  leadsByStage(column.id).map((lead) => (
+                  <div className="flex flex-nowrap gap-3">
+                    {leadsByStage(column.id).map((lead) => (
                     <article
                       key={lead._id}
                       draggable
                       onDragStart={() => setDraggingId(lead._id ?? null)}
                       onDragEnd={() => setDraggingId(null)}
-                      className="cursor-grab rounded-lg border border-zinc-200 bg-white p-3 text-xs shadow-sm transition active:cursor-grabbing hover:border-emerald-300 hover:shadow"
+                      className="min-w-[220px] max-w-[220px] shrink-0 cursor-grab rounded-lg border border-zinc-200 bg-white p-3 text-xs shadow-sm transition active:cursor-grabbing hover:border-emerald-300 hover:shadow"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
@@ -137,12 +137,12 @@ export default function KanbanTab({ initialLeads }: KanbanTabProps) {
                         )}
                       </div>
                     </article>
-                  ))
+                    ))}
+                  </div>
                 )}
               </div>
             </section>
           ))}
-        </div>
       </div>
 
       <p className="text-[11px] text-zinc-500">

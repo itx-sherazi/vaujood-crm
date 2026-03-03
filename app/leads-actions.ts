@@ -91,6 +91,25 @@ export async function listLeadsForKanban(
   return docs.map((d) => toLead(d as Parameters<typeof toLead>[0]));
 }
 
+/** Leads created on a given day (YYYY-MM-DD) for daily report. Day is in Pakistan time (UTC+5). */
+export async function getLeadsForDailyReport(
+  dateStr: string,
+): Promise<Lead[]> {
+  const parts = dateStr.split("-").map(Number);
+  if (parts.length !== 3) return [];
+  const [y, m, d] = parts;
+  const pkOffsetMs = 5 * 60 * 60 * 1000;
+  const start = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0) - pkOffsetMs);
+  const end = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999) - pkOffsetMs);
+  const db = await getDb();
+  const col = db.collection(COLLECTION);
+  const docs = await col
+    .find({ createdAt: { $gte: start, $lte: end } })
+    .sort({ createdAt: 1 })
+    .toArray();
+  return docs.map((d) => toLead(d as Parameters<typeof toLead>[0]));
+}
+
 export async function createLead(formData: FormData) {
   const db = await getDb();
   const col = db.collection(COLLECTION);

@@ -6,10 +6,11 @@ import LeadsTab from "./leads-tab";
 import KanbanTab from "./kanban-tab";
 import ChartsTab from "./charts-tab";
 import CalendarTab from "./calendar-tab";
+import ReportTab from "./report-tab";
 import type { Property } from "./properties-actions";
 import type { Lead } from "./leads-actions";
 
-type TabId = "properties" | "leads" | "kanban" | "charts" | "calendar";
+type TabId = "properties" | "leads" | "kanban" | "charts" | "calendar" | "report";
 
 interface CrmShellProps {
   initialProperties: Property[];
@@ -104,6 +105,17 @@ export default function CrmShell({
           >
             Calendar
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("report")}
+            className={`min-h-[44px] min-w-[100px] flex-1 shrink-0 rounded-lg px-3 py-2 text-sm font-medium transition sm:min-w-0 ${
+              activeTab === "report"
+                ? "bg-emerald-500 text-white shadow-sm"
+                : "text-zinc-600 hover:bg-zinc-100"
+            }`}
+          >
+            Report
+          </button>
         </nav>
 
         <section className="min-w-0 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-6">
@@ -126,6 +138,7 @@ export default function CrmShell({
           )}
           {activeTab === "charts" && <ChartsTab />}
           {activeTab === "calendar" && <CalendarTab />}
+          {activeTab === "report" && <ReportTab />}
         </section>
       </main>
     </div>
