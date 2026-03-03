@@ -29,6 +29,7 @@ export default function PropertiesTab({
   const [currentPage, setCurrentPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -47,53 +48,49 @@ export default function PropertiesTab({
   };
 
   const handleCreate = (formData: FormData) => {
+    setError(null);
     startTransition(async () => {
-      await createProperty(formData);
-      setModalOpen(false);
-      setEditingProperty(null);
-      router.refresh();
-      loadPage(1);
+      try {
+        await createProperty(formData);
+        setModalOpen(false);
+        setEditingProperty(null);
+        router.refresh();
+        loadPage(1);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to add property");
+      }
     });
   };
 
   const handleEditSubmit = (formData: FormData) => {
+    setError(null);
     startTransition(async () => {
-      await updateProperty(formData);
-      const id = String(formData.get("id") ?? "");
-      setLocalProperties((prev) =>
-        prev.map((p) => {
-          if (p._id !== id) return p;
-          return {
-            ...p,
-            name: String(formData.get("name") ?? ""),
-            location: String(formData.get("location") ?? ""),
-            type: (formData.get("type") as Property["type"]) ?? p.type,
-            price: Number(formData.get("price") ?? 0),
-            sizeSqft: Number(formData.get("sizeSqft") ?? 0),
-            bedrooms:
-              formData.get("bedrooms") === ""
-                ? null
-                : Number(formData.get("bedrooms") ?? null),
-            status: (formData.get("status") as Property["status"]) ?? p.status,
-            shortDescription: String(
-              formData.get("shortDescription") ?? "",
-            ),
-          };
-        }),
-      );
-      setModalOpen(false);
-      setEditingProperty(null);
+      try {
+        await updateProperty(formData);
+        setModalOpen(false);
+        setEditingProperty(null);
+        router.refresh();
+        loadPage(currentPage);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to update property");
+      }
     });
   };
 
   const handleDelete = (id: string | undefined) => {
     if (!id) return;
+    setError(null);
     const formData = new FormData();
     formData.set("id", id);
     startTransition(async () => {
-      await deleteProperty(formData);
-      setLocalProperties((prev) => prev.filter((p) => p._id !== id));
-      setTotalProperties((t) => Math.max(0, t - 1));
+      try {
+        await deleteProperty(formData);
+        setLocalProperties((prev) => prev.filter((p) => p._id !== id));
+        setTotalProperties((t) => Math.max(0, t - 1));
+        router.refresh();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to delete property");
+      }
     });
   };
 
@@ -104,6 +101,11 @@ export default function PropertiesTab({
 
   return (
     <div className="flex flex-col gap-4 sm:gap-6">
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-700">
           Properties List

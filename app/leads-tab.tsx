@@ -40,6 +40,7 @@ export default function LeadsTab({
   const [currentPage, setCurrentPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -58,51 +59,49 @@ export default function LeadsTab({
   };
 
   const handleCreate = (formData: FormData) => {
+    setError(null);
     startTransition(async () => {
-      await createLead(formData);
-      setModalOpen(false);
-      setEditingLead(null);
-      router.refresh();
-      loadPage(1);
+      try {
+        await createLead(formData);
+        setModalOpen(false);
+        setEditingLead(null);
+        router.refresh();
+        loadPage(1);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to add lead");
+      }
     });
   };
 
   const handleEditSubmit = (formData: FormData) => {
+    setError(null);
     startTransition(async () => {
-      await updateLead(formData);
-      const id = String(formData.get("id") ?? "");
-      setLocalLeads((prev) =>
-        prev.map((lead) => {
-          if (lead._id !== id) return lead;
-          return {
-            ...lead,
-            companyName: String(formData.get("companyName") ?? ""),
-            contactPerson: String(formData.get("contactPerson") ?? ""),
-            email: String(formData.get("email") ?? ""),
-            phone: String(formData.get("phone") ?? ""),
-            dealValueAed: Number(formData.get("dealValueAed") ?? 0),
-            propertyInterest: String(formData.get("propertyInterest") ?? ""),
-            stage: (formData.get("stage") as LeadStage) ?? lead.stage,
-            priority: (formData.get("priority") as LeadPriority) ?? lead.priority,
-            source: String(formData.get("source") ?? ""),
-            assignedTo: (formData.get("assignedTo") as "Sheraz" | "Umair") ?? lead.assignedTo,
-            notes: String(formData.get("notes") ?? ""),
-          };
-        }),
-      );
-      setModalOpen(false);
-      setEditingLead(null);
+      try {
+        await updateLead(formData);
+        setModalOpen(false);
+        setEditingLead(null);
+        router.refresh();
+        loadPage(currentPage);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to update lead");
+      }
     });
   };
 
   const handleDelete = (id: string | undefined) => {
     if (!id) return;
+    setError(null);
     const formData = new FormData();
     formData.set("id", id);
     startTransition(async () => {
-      await deleteLead(formData);
-      setLocalLeads((prev) => prev.filter((lead) => lead._id !== id));
-      setTotalLeads((t) => Math.max(0, t - 1));
+      try {
+        await deleteLead(formData);
+        setLocalLeads((prev) => prev.filter((lead) => lead._id !== id));
+        setTotalLeads((t) => Math.max(0, t - 1));
+        router.refresh();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to delete lead");
+      }
     });
   };
 
@@ -113,6 +112,11 @@ export default function LeadsTab({
 
   return (
     <div className="flex flex-col gap-4 sm:gap-6">
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-700">
           Leads List
