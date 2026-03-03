@@ -35,17 +35,17 @@ export async function listProperties(): Promise<Property[]> {
     .find({})
     .sort({ createdAt: -1 })
     .toArray();
-  return docs.map((doc: { _id: { toString(): string }; name?: string; location?: string; type?: string; price?: number; priceResidential?: number; priceCommercial?: number; sizeSqft?: number; bedrooms?: string | number | null; status?: string; shortDescription?: string }) => ({
+  return docs.map((doc: { _id: { toString(): string }; name?: string; location?: string; type?: string; price?: number; priceResidential?: number; priceCommercial?: number; sizeSqft?: number; bedrooms?: string | number | null; status?: string; shortDescription?: string }): Property => ({
     _id: doc._id.toString(),
     name: doc.name ?? "",
     location: doc.location ?? "",
-    type: doc.type ?? "residential",
+    type: (doc.type ?? "residential") as PropertyType,
     price: doc.price ?? 0,
     priceResidential: doc.priceResidential ?? 0,
     priceCommercial: doc.priceCommercial ?? 0,
     sizeSqft: doc.sizeSqft ?? 0,
     bedrooms: doc.bedrooms != null ? String(doc.bedrooms) : null,
-    status: doc.status ?? "available",
+    status: (doc.status ?? "available") as PropertyStatus,
     shortDescription: doc.shortDescription ?? "",
   }));
 }
@@ -61,17 +61,17 @@ export async function listPropertiesPaginated(
     col.find({}).sort({ createdAt: -1 }).skip(skip).limit(limit).toArray(),
     col.countDocuments(),
   ]);
-  const properties = docs.map((doc: { _id: { toString(): string }; name?: string; location?: string; type?: string; price?: number; priceResidential?: number; priceCommercial?: number; sizeSqft?: number; bedrooms?: string | number | null; status?: string; shortDescription?: string }) => ({
+  const properties = docs.map((doc: { _id: { toString(): string }; name?: string; location?: string; type?: string; price?: number; priceResidential?: number; priceCommercial?: number; sizeSqft?: number; bedrooms?: string | number | null; status?: string; shortDescription?: string }): Property => ({
     _id: doc._id.toString(),
     name: doc.name ?? "",
     location: doc.location ?? "",
-    type: doc.type ?? "residential",
+    type: (doc.type ?? "residential") as PropertyType,
     price: doc.price ?? 0,
     priceResidential: doc.priceResidential ?? 0,
     priceCommercial: doc.priceCommercial ?? 0,
     sizeSqft: doc.sizeSqft ?? 0,
     bedrooms: doc.bedrooms != null ? String(doc.bedrooms) : null,
-    status: doc.status ?? "available",
+    status: (doc.status ?? "available") as PropertyStatus,
     shortDescription: doc.shortDescription ?? "",
   }));
   return { properties, total };
