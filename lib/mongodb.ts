@@ -1,6 +1,7 @@
 import { MongoClient, Db } from "mongodb";
 
-const uri = "mongodb://127.0.0.1:27017/vujood-crm";
+const uri =
+  "mongodb+srv://devolper76_db_user:azNx3sQxOJiuiAGH@cluster0.ohgthoh.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
 const dbName = "vujood-crm";
 
 let client: MongoClient | null = null;
