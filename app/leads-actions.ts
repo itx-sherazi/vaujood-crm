@@ -1,6 +1,7 @@
 "use server";
 
 import { ObjectId } from "mongodb";
+import { revalidatePath } from "next/cache";
 import { getDb } from "../lib/mongodb";
 
 export type LeadStage =
@@ -122,6 +123,7 @@ export async function createLead(formData: FormData) {
     notes,
     createdAt: new Date(),
   });
+  revalidatePath("/");
 }
 
 export async function updateLeadStage(id: string, stage: LeadStage) {
@@ -131,6 +133,7 @@ export async function updateLeadStage(id: string, stage: LeadStage) {
     { _id: new ObjectId(id) },
     { $set: { stage, updatedAt: new Date() } },
   );
+  revalidatePath("/");
 }
 
 export async function updateLead(formData: FormData) {
@@ -176,6 +179,7 @@ export async function updateLead(formData: FormData) {
       },
     },
   );
+  revalidatePath("/");
 }
 
 export async function deleteLead(formData: FormData) {
@@ -185,5 +189,6 @@ export async function deleteLead(formData: FormData) {
   const db = await getDb();
   const col = db.collection(COLLECTION);
   await col.deleteOne({ _id: new ObjectId(id) });
+  revalidatePath("/");
 }
 

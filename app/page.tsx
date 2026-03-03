@@ -10,6 +10,10 @@ import CrmShell from "./crm-shell";
 const PAGE_SIZE = 50;
 const KANBAN_LEADS_LIMIT = 1000;
 
+// Live par cache na ho – hamesha DB se fresh data
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function Home() {
   const [
     { properties, total: totalProperties },

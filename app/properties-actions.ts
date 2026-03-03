@@ -1,6 +1,7 @@
 "use server";
 
 import { ObjectId } from "mongodb";
+import { revalidatePath } from "next/cache";
 import { getDb } from "../lib/mongodb";
 
 export type PropertyStatus = "available" | "under_offer" | "sold";
@@ -99,6 +100,7 @@ export async function createProperty(formData: FormData) {
     shortDescription,
     createdAt: new Date(),
   });
+  revalidatePath("/");
 }
 
 export async function updateProperty(formData: FormData) {
@@ -142,6 +144,7 @@ export async function updateProperty(formData: FormData) {
       },
     },
   );
+  revalidatePath("/");
 }
 
 export async function deleteProperty(formData: FormData) {
@@ -151,5 +154,6 @@ export async function deleteProperty(formData: FormData) {
   const db = await getDb();
   const col = db.collection(COLLECTION);
   await col.deleteOne({ _id: new ObjectId(id) });
+  revalidatePath("/");
 }
 
