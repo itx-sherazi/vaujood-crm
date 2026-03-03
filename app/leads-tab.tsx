@@ -7,14 +7,26 @@ import {
   createLead,
   updateLead,
   deleteLead,
+  duplicateLead,
   listLeadsPaginated,
 } from "./leads-actions";
+import { getPropertyOptions } from "./properties-actions";
 import Modal from "./components/Modal";
 
 interface LeadsTabProps {
   initialLeads: Lead[];
   totalLeads: number;
   pageSize: number;
+}
+
+function whatsAppUrl(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 0) return "";
+  let num = digits;
+  if (num.startsWith("0") && num.length === 11) num = "92" + num.slice(1);
+  else if (num.length === 10 && num.startsWith("3")) num = "92" + num;
+  else if (num.length < 10) return "";
+  return `https://wa.me/${num}`;
 }
 
 const STAGE_OPTIONS: { value: LeadStage; label: string }[] = [
@@ -29,6 +41,21 @@ const STAGE_OPTIONS: { value: LeadStage; label: string }[] = [
 
 const PRIORITY_OPTIONS: LeadPriority[] = ["High", "Medium", "Low"];
 
+const PROPERTY_INTEREST_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "Select" },
+  { value: "1", label: "1 BHK" },
+  { value: "2", label: "2 BHK" },
+  { value: "3", label: "3 BHK" },
+  { value: "4", label: "4 BHK" },
+  { value: "5+", label: "5 BHK" },
+  { value: "retail_shop", label: "Retail Shop" },
+  { value: "food_court", label: "Food Court" },
+  { value: "offices", label: "Offices" },
+  { value: "service_based_business", label: "Service-based business" },
+  { value: "commercial_offices", label: "Commercial offices" },
+  { value: "financial_and_institutional", label: "Financial and institutional" },
+];
+
 export default function LeadsTab({
   initialLeads,
   totalLeads: initialTotal,
@@ -40,8 +67,14 @@ export default function LeadsTab({
   const [currentPage, setCurrentPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [propertyOptions, setPropertyOptions] = useState<{ _id: string; name: string }[]>([]);
   const router = useRouter();
+
+  useEffect(() => {
+    getPropertyOptions().then(setPropertyOptions);
+  }, []);
 
   useEffect(() => {
     setLocalLeads(initialLeads);
@@ -90,6 +123,7 @@ export default function LeadsTab({
 
   const handleDelete = (id: string | undefined) => {
     if (!id) return;
+    setDeleteConfirmId(null);
     setError(null);
     const formData = new FormData();
     formData.set("id", id);
@@ -101,6 +135,20 @@ export default function LeadsTab({
         router.refresh();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to delete lead");
+      }
+    });
+  };
+
+  const handleDuplicate = (id: string | undefined) => {
+    if (!id) return;
+    setError(null);
+    startTransition(async () => {
+      try {
+        await duplicateLead(id);
+        router.refresh();
+        loadPage(1);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to duplicate lead");
       }
     });
   };
@@ -224,16 +272,40 @@ export default function LeadsTab({
           </div>
 
           <div className="space-y-1">
+            <label className="text-xs font-medium text-zinc-600" htmlFor="modal-propertyId">
+              Property
+            </label>
+            <select
+              id="modal-propertyId"
+              name="propertyId"
+              defaultValue={editingLead?.propertyId ?? ""}
+              className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+            >
+              <option value="">Select property</option>
+              {propertyOptions.map((p) => (
+                <option key={p._id} value={p._id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1">
             <label className="text-xs font-medium text-zinc-600" htmlFor="modal-propertyInterest">
               Property Interest
             </label>
-            <input
+            <select
               id="modal-propertyInterest"
               name="propertyInterest"
-              defaultValue={editingLead?.propertyInterest}
+              defaultValue={editingLead?.propertyInterest ?? ""}
               className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-              placeholder="Downtown Apt, 3BR"
-            />
+            >
+              {PROPERTY_INTEREST_OPTIONS.map((opt) => (
+                <option key={opt.value || "empty"} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-1">
@@ -336,6 +408,33 @@ export default function LeadsTab({
         </form>
       </Modal>
 
+      <Modal
+        open={deleteConfirmId != null}
+        onClose={() => setDeleteConfirmId(null)}
+        title="Delete lead?"
+      >
+        <p className="text-sm text-zinc-600">
+          Are you sure you want to delete this lead? This action cannot be undone.
+        </p>
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setDeleteConfirmId(null)}
+            className="min-h-[44px] rounded-lg border border-zinc-300 px-4 py-2.5 text-sm font-medium text-zinc-600 hover:bg-zinc-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => handleDelete(deleteConfirmId ?? undefined)}
+            disabled={isPending}
+            className="min-h-[44px] rounded-lg bg-red-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-600 disabled:opacity-60"
+          >
+            {isPending ? "Deleting…" : "Delete"}
+          </button>
+        </div>
+      </Modal>
+
       <p className="text-xs text-zinc-500">
         {totalLeads === 0
           ? "No leads"
@@ -386,9 +485,9 @@ export default function LeadsTab({
                   )}
                 </div>
 
-                {lead.propertyInterest && (
+                {(lead.propertyId || lead.propertyInterest) && (
                   <p className="text-xs text-zinc-500">
-                    Property: {lead.propertyInterest}
+                    Property: {lead.propertyId ? (propertyOptions.find((p) => p._id === lead.propertyId)?.name ?? lead.propertyId) : propertyInterestLabel(lead.propertyInterest)}
                   </p>
                 )}
 
@@ -399,10 +498,29 @@ export default function LeadsTab({
                 )}
 
                 <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-zinc-100 pt-2">
-                  <span className="max-w-[120px] truncate text-[11px] text-zinc-400">
+                  <span className="max-w-[100px] truncate text-[11px] text-zinc-400">
                     {lead._id}
                   </span>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {lead.phone && whatsAppUrl(lead.phone) && (
+                      <a
+                        href={whatsAppUrl(lead.phone)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg bg-[#25D366] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#20BD5A]"
+                        aria-label="WhatsApp"
+                      >
+                        <WhatsAppIcon className="h-4 w-4" />
+                        WhatsApp
+                      </a>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleDuplicate(lead._id)}
+                      className="min-h-[36px] rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50"
+                    >
+                      Duplicate
+                    </button>
                     <button
                       type="button"
                       onClick={() => {
@@ -415,7 +533,7 @@ export default function LeadsTab({
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleDelete(lead._id)}
+                      onClick={() => setDeleteConfirmId(lead._id ?? null)}
                       className="min-h-[36px] rounded-lg px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
                     >
                       Delete
@@ -460,4 +578,19 @@ export default function LeadsTab({
 function stageLabel(stage: LeadStage): string {
   const found = STAGE_OPTIONS.find((opt) => opt.value === stage);
   return found ? found.label : "New Lead";
+}
+
+export function propertyInterestLabel(value: string): string {
+  if (!value) return value;
+  if (value === "detail_shop") return "Retail Shop";
+  const found = PROPERTY_INTEREST_OPTIONS.find((o) => o.value === value);
+  return found?.label ?? value;
+}
+
+function WhatsAppIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+    </svg>
+  );
 }

@@ -6,7 +6,7 @@ import { getDb } from "../lib/mongodb";
 
 export type PropertyStatus = "available" | "under_offer" | "sold";
 
-export type PropertyType = "residential" | "commercial" | "industrial" | "land";
+export type PropertyType = "residential" | "commercial" | "residential_commercial" | "industrial" | "land";
 
 export interface Property {
   _id?: string;
@@ -15,7 +15,8 @@ export interface Property {
   type: PropertyType;
   price: number;
   sizeSqft: number;
-  bedrooms: number | null;
+  /** Showrooms 1-5+ or unit type: retail_shop, food_court, offices, etc. */
+  bedrooms: string | number | null;
   status: PropertyStatus;
   shortDescription: string;
 }
@@ -36,7 +37,7 @@ export async function listProperties(): Promise<Property[]> {
     type: doc.type,
     price: doc.price,
     sizeSqft: doc.sizeSqft,
-    bedrooms: doc.bedrooms ?? null,
+    bedrooms: doc.bedrooms != null ? String(doc.bedrooms) : null,
     status: doc.status,
     shortDescription: doc.shortDescription ?? "",
   }));
@@ -60,11 +61,19 @@ export async function listPropertiesPaginated(
     type: doc.type,
     price: doc.price,
     sizeSqft: doc.sizeSqft,
-    bedrooms: doc.bedrooms ?? null,
+    bedrooms: doc.bedrooms != null ? String(doc.bedrooms) : null,
     status: doc.status,
     shortDescription: doc.shortDescription ?? "",
   }));
   return { properties, total };
+}
+
+/** Lightweight list for dropdowns (e.g. in Lead form) */
+export async function getPropertyOptions(): Promise<{ _id: string; name: string }[]> {
+  const db = await getDb();
+  const col = db.collection(COLLECTION);
+  const docs = await col.find({}).sort({ name: 1 }).project({ name: 1 }).toArray();
+  return docs.map((d) => ({ _id: d._id.toString(), name: d.name ?? "" }));
 }
 
 export async function createProperty(formData: FormData) {
@@ -83,7 +92,7 @@ export async function createProperty(formData: FormData) {
   const bedrooms =
     bedroomsRaw === null || bedroomsRaw === ""
       ? null
-      : Number(bedroomsRaw);
+      : String(bedroomsRaw).trim();
 
   if (!name || !location || !type || !status) {
     throw new Error("Missing required fields");
@@ -122,7 +131,7 @@ export async function updateProperty(formData: FormData) {
   const bedrooms =
     bedroomsRaw === null || bedroomsRaw === ""
       ? null
-      : Number(bedroomsRaw);
+      : String(bedroomsRaw).trim();
 
   if (!name || !location || !type || !status) {
     throw new Error("Missing required fields");
@@ -144,6 +153,17 @@ export async function updateProperty(formData: FormData) {
       },
     },
   );
+  revalidatePath("/");
+}
+
+export async function duplicateProperty(id: string) {
+  if (!id) throw new Error("Property ID required");
+  const db = await getDb();
+  const col = db.collection(COLLECTION);
+  const doc = await col.findOne({ _id: new ObjectId(id) });
+  if (!doc) throw new Error("Property not found");
+  const { _id, ...rest } = doc;
+  await col.insertOne({ ...rest, createdAt: new Date() });
   revalidatePath("/");
 }
 

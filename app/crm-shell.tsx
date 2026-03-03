@@ -4,10 +4,12 @@ import { useState } from "react";
 import PropertiesTab from "./properties-tab";
 import LeadsTab from "./leads-tab";
 import KanbanTab from "./kanban-tab";
+import ChartsTab from "./charts-tab";
+import CalendarTab from "./calendar-tab";
 import type { Property } from "./properties-actions";
 import type { Lead } from "./leads-actions";
 
-type TabId = "properties" | "leads" | "kanban";
+type TabId = "properties" | "leads" | "kanban" | "charts" | "calendar";
 
 interface CrmShellProps {
   initialProperties: Property[];
@@ -80,6 +82,28 @@ export default function CrmShell({
           >
             Kanban
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("charts")}
+            className={`min-h-[44px] min-w-[100px] flex-1 shrink-0 rounded-lg px-3 py-2 text-sm font-medium transition sm:min-w-0 ${
+              activeTab === "charts"
+                ? "bg-emerald-500 text-white shadow-sm"
+                : "text-zinc-600 hover:bg-zinc-100"
+            }`}
+          >
+            Charts
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("calendar")}
+            className={`min-h-[44px] min-w-[100px] flex-1 shrink-0 rounded-lg px-3 py-2 text-sm font-medium transition sm:min-w-0 ${
+              activeTab === "calendar"
+                ? "bg-emerald-500 text-white shadow-sm"
+                : "text-zinc-600 hover:bg-zinc-100"
+            }`}
+          >
+            Calendar
+          </button>
         </nav>
 
         <section className="min-w-0 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-6">
@@ -100,6 +124,8 @@ export default function CrmShell({
           {activeTab === "kanban" && (
             <KanbanTab initialLeads={kanbanLeads} />
           )}
+          {activeTab === "charts" && <ChartsTab />}
+          {activeTab === "calendar" && <CalendarTab />}
         </section>
       </main>
     </div>

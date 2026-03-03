@@ -7,9 +7,33 @@ import {
   createProperty,
   updateProperty,
   deleteProperty,
+  duplicateProperty,
   listPropertiesPaginated,
 } from "./properties-actions";
 import Modal from "./components/Modal";
+
+const TYPE_LABELS: Record<string, string> = {
+  residential: "Residential",
+  commercial: "Commercial",
+  residential_commercial: "Residential & Commercial",
+  industrial: "Industrial",
+  land: "Land",
+};
+
+const BEDROOMS_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "Select" },
+  { value: "1", label: "1 BHK" },
+  { value: "2", label: "2 BHK" },
+  { value: "3", label: "3 BHK" },
+  { value: "4", label: "4 BHK" },
+  { value: "5+", label: "5 BHK" },
+  { value: "retail_shop", label: "Retail Shop" },
+  { value: "food_court", label: "Food Court" },
+  { value: "offices", label: "Offices" },
+  { value: "service_based_business", label: "Service-based business" },
+  { value: "commercial_offices", label: "Commercial offices" },
+  { value: "financial_and_institutional", label: "Financial and institutional" },
+];
 
 interface PropertiesTabProps {
   initialProperties: Property[];
@@ -29,6 +53,7 @@ export default function PropertiesTab({
   const [currentPage, setCurrentPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
@@ -79,6 +104,7 @@ export default function PropertiesTab({
 
   const handleDelete = (id: string | undefined) => {
     if (!id) return;
+    setDeleteConfirmId(null);
     setError(null);
     const formData = new FormData();
     formData.set("id", id);
@@ -90,6 +116,20 @@ export default function PropertiesTab({
         router.refresh();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to delete property");
+      }
+    });
+  };
+
+  const handleDuplicate = (id: string | undefined) => {
+    if (!id) return;
+    setError(null);
+    startTransition(async () => {
+      try {
+        await duplicateProperty(id);
+        router.refresh();
+        loadPage(1);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to duplicate property");
       }
     });
   };
@@ -179,11 +219,12 @@ export default function PropertiesTab({
               id="modal-type"
               name="type"
               required
-              defaultValue={editingProperty?.type}
+              defaultValue={editingProperty?.type ?? "residential"}
               className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
             >
               <option value="residential">Residential</option>
               <option value="commercial">Commercial</option>
+              <option value="residential_commercial">Residential & Commercial</option>
               <option value="industrial">Industrial</option>
               <option value="land">Land</option>
             </select>
@@ -221,17 +262,24 @@ export default function PropertiesTab({
 
           <div className="space-y-1">
             <label className="text-xs font-medium text-zinc-600" htmlFor="modal-bedrooms">
-              Bedrooms
+              Bedrooms / Unit type
             </label>
-            <input
+            <select
               id="modal-bedrooms"
               name="bedrooms"
-              type="number"
-              min={0}
-              defaultValue={editingProperty?.bedrooms ?? ""}
+              defaultValue={
+                editingProperty?.bedrooms != null
+                  ? String(editingProperty.bedrooms)
+                  : ""
+              }
               className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-              placeholder="3"
-            />
+            >
+              {BEDROOMS_OPTIONS.map((opt) => (
+                <option key={opt.value || "empty"} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-1">
@@ -287,6 +335,33 @@ export default function PropertiesTab({
         </form>
       </Modal>
 
+      <Modal
+        open={deleteConfirmId != null}
+        onClose={() => setDeleteConfirmId(null)}
+        title="Delete property?"
+      >
+        <p className="text-sm text-zinc-600">
+          Are you sure you want to delete this property? This action cannot be undone.
+        </p>
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setDeleteConfirmId(null)}
+            className="min-h-[44px] rounded-lg border border-zinc-300 px-4 py-2.5 text-sm font-medium text-zinc-600 hover:bg-zinc-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => handleDelete(deleteConfirmId ?? undefined)}
+            disabled={isPending}
+            className="min-h-[44px] rounded-lg bg-red-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-600 disabled:opacity-60"
+          >
+            {isPending ? "Deleting…" : "Delete"}
+          </button>
+        </div>
+      </Modal>
+
       <p className="text-xs text-zinc-500">
         {totalProperties === 0
           ? "No properties"
@@ -315,7 +390,7 @@ export default function PropertiesTab({
                     </p>
                   </div>
                   <span className="shrink-0 rounded-full bg-zinc-100 px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-zinc-600">
-                    {property.type}
+                    {TYPE_LABELS[property.type] ?? property.type}
                   </span>
                 </div>
 
@@ -330,9 +405,9 @@ export default function PropertiesTab({
                       {property.sizeSqft} sqft
                     </span>
                   )}
-                  {property.bedrooms !== null && property.bedrooms >= 0 && (
+                  {property.bedrooms != null && String(property.bedrooms) !== "" && (
                     <span className="rounded-full bg-zinc-100 px-2 py-1">
-                      {property.bedrooms} BR
+                      {bedroomsLabel(String(property.bedrooms))}
                     </span>
                   )}
                   <StatusBadge status={property.status} />
@@ -348,7 +423,14 @@ export default function PropertiesTab({
                   <span className="max-w-[120px] truncate text-[11px] text-zinc-400">
                     {property._id}
                   </span>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleDuplicate(property._id)}
+                      className="min-h-[36px] rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50"
+                    >
+                      Duplicate
+                    </button>
                     <button
                       type="button"
                       onClick={() => {
@@ -361,7 +443,7 @@ export default function PropertiesTab({
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleDelete(property._id)}
+                      onClick={() => setDeleteConfirmId(property._id ?? null)}
                       className="min-h-[36px] rounded-lg px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
                     >
                       Delete
@@ -401,6 +483,15 @@ export default function PropertiesTab({
       )}
     </div>
   );
+}
+
+function bedroomsLabel(value: string): string {
+  if (value === "detail_shop") return "Retail Shop"; // backward compatibility
+  const found = BEDROOMS_OPTIONS.find((o) => o.value === value);
+  if (found?.label) return found.label;
+  if (["1", "2", "3", "4"].includes(value)) return `${value} BR`;
+  if (value === "5+") return "5+ BR";
+  return value;
 }
 
 function StatusBadge({ status }: { status: Property["status"] }) {

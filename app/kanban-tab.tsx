@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import type { Lead, LeadStage } from "./leads-actions";
 import { updateLeadStage } from "./leads-actions";
+import { propertyInterestLabel } from "./leads-tab";
 
 interface KanbanTabProps {
   initialLeads: Lead[];
@@ -126,7 +127,7 @@ export default function KanbanTab({ initialLeads }: KanbanTabProps) {
                         )}
                         {lead.propertyInterest && (
                           <span className="rounded-full bg-zinc-100 px-2 py-1">
-                            {lead.propertyInterest}
+                            {propertyInterestLabel(lead.propertyInterest)}
                           </span>
                         )}
                         {lead.assignedTo && (
