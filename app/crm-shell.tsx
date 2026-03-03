@@ -36,10 +36,10 @@ export default function CrmShell({
         <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <h1 className="truncate text-xl font-semibold tracking-tight text-zinc-800 sm:text-2xl">
-              Vujood Holdings CRM
+              CU Holding CRM
             </h1>
             <p className="text-xs text-zinc-500 sm:text-sm">
-              Properties, Leads and Kanban pipeline – internal use only
+              Add your properties & spread the lands
             </p>
           </div>
           <div className="inline-flex shrink-0 items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-500 shadow-sm">

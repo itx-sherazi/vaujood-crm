@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Vujood Holdings CRM",
-  description: "Properties, Leads and Kanban pipeline",
+  title: "CU Holding CRM",
+  description: "Add your properties & spread the lands",
   viewport: "width=device-width, initial-scale=1",
 };
 

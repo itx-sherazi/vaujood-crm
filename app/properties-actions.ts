@@ -13,7 +13,12 @@ export interface Property {
   name: string;
   location: string;
   type: PropertyType;
+  /** Legacy single price; use priceResidential / priceCommercial when set */
   price: number;
+  /** Residential rate (PKR) – can be set alongside commercial */
+  priceResidential: number;
+  /** Commercial rate (PKR) – can be set alongside residential */
+  priceCommercial: number;
   sizeSqft: number;
   /** Showrooms 1-5+ or unit type: retail_shop, food_court, offices, etc. */
   bedrooms: string | number | null;
@@ -30,15 +35,17 @@ export async function listProperties(): Promise<Property[]> {
     .find({})
     .sort({ createdAt: -1 })
     .toArray();
-  return docs.map((doc) => ({
+  return docs.map((doc: { _id: { toString(): string }; name?: string; location?: string; type?: string; price?: number; priceResidential?: number; priceCommercial?: number; sizeSqft?: number; bedrooms?: string | number | null; status?: string; shortDescription?: string }) => ({
     _id: doc._id.toString(),
-    name: doc.name,
-    location: doc.location,
-    type: doc.type,
-    price: doc.price,
-    sizeSqft: doc.sizeSqft,
+    name: doc.name ?? "",
+    location: doc.location ?? "",
+    type: doc.type ?? "residential",
+    price: doc.price ?? 0,
+    priceResidential: doc.priceResidential ?? 0,
+    priceCommercial: doc.priceCommercial ?? 0,
+    sizeSqft: doc.sizeSqft ?? 0,
     bedrooms: doc.bedrooms != null ? String(doc.bedrooms) : null,
-    status: doc.status,
+    status: doc.status ?? "available",
     shortDescription: doc.shortDescription ?? "",
   }));
 }
@@ -54,15 +61,17 @@ export async function listPropertiesPaginated(
     col.find({}).sort({ createdAt: -1 }).skip(skip).limit(limit).toArray(),
     col.countDocuments(),
   ]);
-  const properties = docs.map((doc) => ({
+  const properties = docs.map((doc: { _id: { toString(): string }; name?: string; location?: string; type?: string; price?: number; priceResidential?: number; priceCommercial?: number; sizeSqft?: number; bedrooms?: string | number | null; status?: string; shortDescription?: string }) => ({
     _id: doc._id.toString(),
-    name: doc.name,
-    location: doc.location,
-    type: doc.type,
-    price: doc.price,
-    sizeSqft: doc.sizeSqft,
+    name: doc.name ?? "",
+    location: doc.location ?? "",
+    type: doc.type ?? "residential",
+    price: doc.price ?? 0,
+    priceResidential: doc.priceResidential ?? 0,
+    priceCommercial: doc.priceCommercial ?? 0,
+    sizeSqft: doc.sizeSqft ?? 0,
     bedrooms: doc.bedrooms != null ? String(doc.bedrooms) : null,
-    status: doc.status,
+    status: doc.status ?? "available",
     shortDescription: doc.shortDescription ?? "",
   }));
   return { properties, total };
@@ -84,6 +93,8 @@ export async function createProperty(formData: FormData) {
   const location = String(formData.get("location") || "").trim();
   const type = formData.get("type") as PropertyType;
   const price = Number(formData.get("price") || 0);
+  const priceResidential = Number(formData.get("priceResidential") || 0);
+  const priceCommercial = Number(formData.get("priceCommercial") || 0);
   const sizeSqft = Number(formData.get("sizeSqft") || 0);
   const bedroomsRaw = formData.get("bedrooms");
   const status = formData.get("status") as PropertyStatus;
@@ -103,6 +114,8 @@ export async function createProperty(formData: FormData) {
     location,
     type,
     price,
+    priceResidential,
+    priceCommercial,
     sizeSqft,
     bedrooms,
     status,
@@ -123,6 +136,8 @@ export async function updateProperty(formData: FormData) {
   const location = String(formData.get("location") || "").trim();
   const type = formData.get("type") as PropertyType;
   const price = Number(formData.get("price") || 0);
+  const priceResidential = Number(formData.get("priceResidential") || 0);
+  const priceCommercial = Number(formData.get("priceCommercial") || 0);
   const sizeSqft = Number(formData.get("sizeSqft") || 0);
   const bedroomsRaw = formData.get("bedrooms");
   const status = formData.get("status") as PropertyStatus;
@@ -145,6 +160,8 @@ export async function updateProperty(formData: FormData) {
         location,
         type,
         price,
+        priceResidential,
+        priceCommercial,
         sizeSqft,
         bedrooms,
         status,

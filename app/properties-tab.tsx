@@ -231,17 +231,31 @@ export default function PropertiesTab({
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-medium text-zinc-600" htmlFor="modal-price">
-              Price (PKR)
+            <label className="text-xs font-medium text-zinc-600" htmlFor="modal-priceResidential">
+              Residential rate (PKR)
             </label>
             <input
-              id="modal-price"
-              name="price"
+              id="modal-priceResidential"
+              name="priceResidential"
               type="number"
               min={0}
-              defaultValue={editingProperty?.price ?? ""}
+              defaultValue={editingProperty?.priceResidential ?? editingProperty?.price ?? ""}
               className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-              placeholder="1500000"
+              placeholder="e.g. 1500000"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-zinc-600" htmlFor="modal-priceCommercial">
+              Commercial rate (PKR)
+            </label>
+            <input
+              id="modal-priceCommercial"
+              name="priceCommercial"
+              type="number"
+              min={0}
+              defaultValue={editingProperty?.priceCommercial ?? ""}
+              className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+              placeholder="e.g. 2500000"
             />
           </div>
 
@@ -395,7 +409,17 @@ export default function PropertiesTab({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-600">
-                  {property.price > 0 && (
+                  {(property.priceResidential ?? 0) > 0 && (
+                    <span className="rounded-full bg-sky-50 px-2 py-1 font-medium text-sky-700">
+                      Residential: PKR {(property.priceResidential ?? 0).toLocaleString()}
+                    </span>
+                  )}
+                  {(property.priceCommercial ?? 0) > 0 && (
+                    <span className="rounded-full bg-amber-50 px-2 py-1 font-medium text-amber-700">
+                      Commercial: PKR {(property.priceCommercial ?? 0).toLocaleString()}
+                    </span>
+                  )}
+                  {(property.priceResidential ?? 0) <= 0 && (property.priceCommercial ?? 0) <= 0 && property.price > 0 && (
                     <span className="rounded-full bg-emerald-50 px-2 py-1 font-medium text-emerald-700">
                       PKR {property.price.toLocaleString()}
                     </span>
