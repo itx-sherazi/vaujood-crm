@@ -1,6 +1,6 @@
 /**
  * Google Calendar integration using service account.
- * Set GOOGLE_CALENDAR_ID and GOOGLE_SERVICE_ACCOUNT_JSON (full JSON string) in .env.
+ * Uses GOOGLE_CALENDAR_ID and GOOGLE_SERVICE_ACCOUNT_JSON from .env.
  * Share the target calendar with: cu-holdings@crm-calendar-notification.iam.gserviceaccount.com
  */
 
@@ -8,19 +8,26 @@ import { google } from "googleapis";
 
 const TIMEZONE = "Asia/Karachi";
 
+function normalizeKey(key: string): string {
+  return key.replace(/\\n/g, "\n");
+}
+
 function getCredentials():
   | { client_email: string; private_key: string }
   | null {
   const jsonStr = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-  if (!jsonStr) return null;
+  if (!jsonStr) {
+    console.error("GOOGLE_SERVICE_ACCOUNT_JSON missing in environment");
+    return null;
+  }
   try {
     const parsed = JSON.parse(jsonStr) as { client_email?: string; private_key?: string };
     if (parsed.client_email && parsed.private_key) {
-      const key = parsed.private_key.replace(/\\n/g, "\n");
-      return { client_email: parsed.client_email, private_key: key };
+      return { client_email: parsed.client_email, private_key: normalizeKey(parsed.private_key) };
     }
-  } catch {
-    // ignore
+    console.error("GOOGLE_SERVICE_ACCOUNT_JSON missing client_email or private_key");
+  } catch (e) {
+    console.error("GOOGLE_SERVICE_ACCOUNT_JSON parse error:", (e as Error).message);
   }
   return null;
 }
@@ -82,7 +89,9 @@ export async function createCalendarEvent(params: {
       sendUpdates: "all",
     });
     return res.data.id ?? null;
-  } catch {
+  } catch (err) {
+    // Surface in server logs so misconfiguration is visible during dev
+    console.error("Google Calendar createEvent failed", err);
     return null;
   }
 }
@@ -126,7 +135,8 @@ export async function updateCalendarEvent(
       sendUpdates: "all",
     });
     return true;
-  } catch {
+  } catch (err) {
+    console.error("Google Calendar updateEvent failed", err);
     return false;
   }
 }
@@ -154,7 +164,8 @@ export async function deleteCalendarEvent(eventId: string): Promise<boolean> {
       sendUpdates: "all",
     });
     return true;
-  } catch {
+  } catch (err) {
+    console.error("Google Calendar deleteEvent failed", err);
     return false;
   }
 }

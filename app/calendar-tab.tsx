@@ -34,6 +34,24 @@ function toTimeInputValue(date: Date) {
   return String(date.getHours()).padStart(2, "0") + ":" + String(date.getMinutes()).padStart(2, "0");
 }
 
+function buildGoogleCalendarUrl(reminder: Reminder): string {
+  const start = new Date(reminder.reminderAt);
+  const end = new Date(start.getTime() + 30 * 60 * 1000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const fmt = (d: Date) => {
+    const y = d.getFullYear();
+    const m = pad(d.getMonth() + 1);
+    const day = pad(d.getDate());
+    const h = pad(d.getHours());
+    const min = pad(d.getMinutes());
+    return `${y}${m}${day}T${h}${min}00`;
+  };
+  const dates = `${fmt(start)}/${fmt(end)}`;
+  const title = encodeURIComponent(reminder.title || "Follow up");
+  const details = encodeURIComponent(reminder.notes || "");
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}`;
+}
+
 export default function CalendarTab() {
   const router = useRouter();
   const [current, setCurrent] = useState(() => new Date());
@@ -199,22 +217,33 @@ export default function CalendarTab() {
                             <ul className="mt-1 space-y-1">
                               {dayReminders.map((r) => (
                                 <li key={r._id}>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setEditingReminder(r);
-                                      setSelectedDate(toDateInputValue(new Date(r.reminderAt)));
-                                      setModalOpen(true);
-                                    }}
-                                    className="w-full truncate rounded bg-emerald-100 px-1.5 py-0.5 text-left text-[11px] text-emerald-800 hover:bg-emerald-200"
-                                    title={r.notes || r.title}
-                                  >
-                                    {new Date(r.reminderAt).toLocaleTimeString("en-GB", {
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    })}{" "}
-                                    {r.title}
-                                  </button>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingReminder(r);
+                                        setSelectedDate(toDateInputValue(new Date(r.reminderAt)));
+                                        setModalOpen(true);
+                                      }}
+                                      className="w-full truncate rounded bg-emerald-100 px-1.5 py-0.5 text-left text-[11px] text-emerald-800 hover:bg-emerald-200"
+                                      title={r.notes || r.title}
+                                    >
+                                      {new Date(r.reminderAt).toLocaleTimeString("en-GB", {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })}{" "}
+                                      {r.title}
+                                    </button>
+                                    <a
+                                      href={buildGoogleCalendarUrl(r)}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="shrink-0 rounded border border-sky-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-sky-700 hover:bg-sky-50"
+                                      title="Add to Google Calendar"
+                                    >
+                                      GCal
+                                    </a>
+                                  </div>
                                 </li>
                               ))}
                             </ul>
