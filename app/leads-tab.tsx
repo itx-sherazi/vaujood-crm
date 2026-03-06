@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition, useState, useEffect } from "react";
+import { useTransition, useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import type { Lead, LeadStage, LeadPriority } from "./leads-actions";
 import {
@@ -9,6 +9,7 @@ import {
   deleteLead,
   duplicateLead,
   listLeadsPaginated,
+  importLeadsBulk,
 } from "./leads-actions";
 import { getPropertyOptions } from "./properties-actions";
 import Modal from "./components/Modal";
@@ -70,6 +71,8 @@ export default function LeadsTab({
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [propertyOptions, setPropertyOptions] = useState<{ _id: string; name: string }[]>([]);
+  const [uploadResult, setUploadResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -153,6 +156,40 @@ export default function LeadsTab({
     });
   };
 
+  const handleXlsxUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setError(null);
+    setUploadResult(null);
+    startTransition(async () => {
+      try {
+        const XLSX = await import("xlsx");
+        const data = await file.arrayBuffer();
+        const wb = XLSX.read(data, { type: "array" });
+        const firstSheet = wb.Sheets[wb.SheetNames[0]];
+        if (!firstSheet) {
+          setError("No sheet found in file");
+          return;
+        }
+        const rows = XLSX.utils.sheet_to_json(firstSheet) as Record<string, unknown>[];
+        const stringRows: Record<string, string>[] = rows.map((r) => {
+          const out: Record<string, string> = {};
+          for (const [k, v] of Object.entries(r)) {
+            out[String(k)] = v == null ? "" : String(v);
+          }
+          return out;
+        });
+        const result = await importLeadsBulk(stringRows);
+        setUploadResult(result);
+        router.refresh();
+        loadPage(1);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Upload failed");
+      }
+    });
+  };
+
   const totalPages =
     totalLeads === 0 ? 1 : Math.ceil(totalLeads / pageSize);
   const startIndex = (currentPage - 1) * pageSize;
@@ -169,17 +206,51 @@ export default function LeadsTab({
         <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-700">
           Leads List
         </h2>
-        <button
-          type="button"
-          onClick={() => {
-            setEditingLead(null);
-            setModalOpen(true);
-          }}
-          className="min-h-[44px] shrink-0 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-emerald-600"
-        >
-          + Add Lead
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            className="hidden"
+            onChange={handleXlsxUpload}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isPending}
+            title="Columns: Company / Name, Contact Person, Email, Phone, Deal Value (PKR), Property, Property Interest, Stage, Priority, Source, Assigned To, Notes"
+            className="min-h-[44px] shrink-0 rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 shadow-sm hover:bg-zinc-50 disabled:opacity-50"
+          >
+            {isPending ? "Importing…" : "Upload XLSX"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setEditingLead(null);
+              setModalOpen(true);
+            }}
+            className="min-h-[44px] shrink-0 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-emerald-600"
+          >
+            + Add Lead
+          </button>
+        </div>
       </div>
+
+      {uploadResult && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          <p className="font-medium">Import complete: {uploadResult.imported} lead(s) added.</p>
+          {uploadResult.errors.length > 0 && (
+            <ul className="mt-2 list-inside list-disc text-amber-700">
+              {uploadResult.errors.slice(0, 10).map((msg, i) => (
+                <li key={i}>{msg}</li>
+              ))}
+              {uploadResult.errors.length > 10 && (
+                <li>… and {uploadResult.errors.length - 10} more</li>
+              )}
+            </ul>
+          )}
+        </div>
+      )}
 
       <Modal
         open={modalOpen}

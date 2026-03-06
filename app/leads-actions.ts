@@ -3,6 +3,7 @@
 import { ObjectId } from "mongodb";
 import { revalidatePath } from "next/cache";
 import { getDb } from "../lib/mongodb";
+import { getPropertyOptions } from "./properties-actions";
 
 export type LeadStage =
   | "new_lead"
@@ -149,6 +150,121 @@ export async function createLead(formData: FormData) {
     createdAt: new Date(),
   });
   revalidatePath("/");
+}
+
+/** Get cell value by trying possible column headers (sheet headers may vary) */
+function getCell(row: Record<string, string>, ...possibleHeaders: string[]): string {
+  const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+  for (const header of possibleHeaders) {
+    const n = norm(header);
+    for (const key of Object.keys(row)) {
+      if (norm(key) === n) return String(row[key] ?? "").trim();
+    }
+  }
+  return "";
+}
+
+const STAGE_MAP: Record<string, LeadStage> = {
+  new_lead: "new_lead",
+  "new lead": "new_lead",
+  contacted: "contacted",
+  qualified: "qualified",
+  proposal: "proposal",
+  negotiation: "negotiation",
+  closed_won: "closed_won",
+  "closed won": "closed_won",
+  closed_lost: "closed_lost",
+  "closed lost": "closed_lost",
+};
+
+const PRIORITY_MAP: Record<string, LeadPriority> = {
+  high: "High",
+  medium: "Medium",
+  low: "Low",
+};
+
+const ASSIGNED_MAP: Record<string, "Sheraz" | "Umair"> = {
+  sheraz: "Sheraz",
+  umair: "Umair",
+};
+
+/**
+ * Import leads from XLSX rows. Each row is an object with keys = column headers.
+ * Expected columns: Company / Name, Contact Person, Email, Phone, Deal Value (PKR), Property, Property Interest, Stage, Priority, Source, Assigned To, Notes
+ */
+export async function importLeadsBulk(
+  rows: Record<string, string>[],
+): Promise<{ imported: number; skipped: number; errors: string[] }> {
+  const db = await getDb();
+  const col = db.collection(COLLECTION);
+  const properties = await getPropertyOptions();
+  const nameToId = new Map(properties.map((p) => [p.name.trim().toLowerCase(), p._id]));
+
+  let imported = 0;
+  const errors: string[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const companyName = getCell(
+      row,
+      "Company / Name",
+      "Company/Name",
+      "Company",
+      "company",
+      "Name",
+      "name",
+    );
+    if (!companyName) {
+      errors.push(`Row ${i + 2}: Company/Name is required`);
+      continue;
+    }
+
+    const contactPerson = getCell(row, "Contact Person", "Contact Person", "contactPerson");
+    const email = getCell(row, "Email", "email");
+    const phone = getCell(row, "Phone", "phone");
+    const dealValueStr = getCell(row, "Deal Value (PKR)", "Deal Value (PKR)", "Deal Value", "dealValueAed");
+    const dealValueAed = Number(dealValueStr) || 0;
+    const propertyName = getCell(row, "Property", "property");
+    const propertyId = propertyName
+      ? nameToId.get(propertyName.trim().toLowerCase()) ?? null
+      : null;
+    const propertyInterest = getCell(row, "Property Interest", "Property Interest", "propertyInterest");
+    const stageStr = getCell(row, "Stage", "stage");
+    const stage: LeadStage =
+      STAGE_MAP[stageStr.toLowerCase()] ?? "new_lead";
+    const priorityStr = getCell(row, "Priority", "priority");
+    const priority: LeadPriority =
+      PRIORITY_MAP[priorityStr.toLowerCase()] ?? "High";
+    const source = getCell(row, "Source", "source");
+    const assignedStr = getCell(row, "Assigned To", "Assigned To", "Assigned T Notes", "assignedTo");
+    const assignedTo: "Sheraz" | "Umair" =
+      ASSIGNED_MAP[assignedStr.toLowerCase()] ?? "Sheraz";
+    const notes = getCell(row, "Notes", "notes");
+
+    try {
+      await col.insertOne({
+        companyName,
+        contactPerson,
+        email,
+        phone,
+        dealValueAed,
+        propertyInterest: propertyInterest || "",
+        propertyId: propertyId || null,
+        stage,
+        priority,
+        source,
+        assignedTo,
+        notes: notes || "",
+        createdAt: new Date(),
+      });
+      imported++;
+    } catch (e) {
+      errors.push(`Row ${i + 2}: ${e instanceof Error ? e.message : "Failed to insert"}`);
+    }
+  }
+
+  revalidatePath("/");
+  return { imported, skipped: rows.length - imported - errors.length, errors };
 }
 
 export async function updateLeadStage(id: string, stage: LeadStage) {
