@@ -39,9 +39,7 @@ export default function KanbanTab({ initialLeads }: KanbanTabProps) {
     setDraggingId(null);
 
     setLeads((prev) =>
-      prev.map((lead) =>
-        lead._id === id ? { ...lead, stage } : lead,
-      ),
+      prev.map((lead) => (lead._id === id ? { ...lead, stage } : lead)),
     );
 
     await updateLeadStage(id, stage);
@@ -61,9 +59,7 @@ export default function KanbanTab({ initialLeads }: KanbanTabProps) {
             Drag cards between columns to update pipeline stages.
           </p>
         </div>
-        <p className="text-xs text-zinc-500">
-          Total leads: {leads.length}
-        </p>
+        <p className="text-xs text-zinc-500">Total leads: {leads.length}</p>
       </div>
 
       <div className="flex flex-col gap-3">
@@ -74,26 +70,26 @@ export default function KanbanTab({ initialLeads }: KanbanTabProps) {
             onDrop={() => onDrop(column.id)}
             className={`flex min-h-[260px] w-full flex-col rounded-xl border-2 bg-white shadow-sm ${column.accent}`}
           >
-              <header className="flex items-center justify-between gap-2 border-b border-zinc-200 px-3 py-2.5">
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-700">
-                    {column.label}
-                  </h3>
-                </div>
-                <span className="rounded-full bg-zinc-100 px-2 py-1 text-[10px] font-medium text-zinc-600">
-                  {leadsByStage(column.id).length}
-                </span>
-              </header>
+            <header className="flex items-center justify-between gap-2 border-b border-zinc-200 px-3 py-2.5">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-700">
+                  {column.label}
+                </h3>
+              </div>
+              <span className="rounded-full bg-zinc-100 px-2 py-1 text-[10px] font-medium text-zinc-600">
+                {leadsByStage(column.id).length}
+              </span>
+            </header>
 
-              <div className="flex-1 overflow-x-auto px-3 py-3">
-                {leadsByStage(column.id).length === 0 ? (
-                  <div className="flex min-h-[120px] items-center justify-center rounded-lg border border-dashed border-zinc-200 bg-zinc-50/80 px-2 py-6 text-center text-[11px] text-zinc-500">
-                    No leads
-                  </div>
-                ) : (
-                  <div className="flex flex-nowrap gap-3">
-                    {leadsByStage(column.id).map((lead) => (
+            <div className="flex-1 overflow-x-auto px-3 py-3">
+              {leadsByStage(column.id).length === 0 ? (
+                <div className="flex min-h-[120px] items-center justify-center rounded-lg border border-dashed border-zinc-200 bg-zinc-50/80 px-2 py-6 text-center text-[11px] text-zinc-500">
+                  No leads
+                </div>
+              ) : (
+                <div className="flex flex-nowrap gap-3">
+                  {leadsByStage(column.id).map((lead) => (
                     <article
                       key={lead._id}
                       draggable
@@ -137,16 +133,18 @@ export default function KanbanTab({ initialLeads }: KanbanTabProps) {
                         )}
                       </div>
                     </article>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </section>
-          ))}
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        ))}
       </div>
 
       <p className="text-[11px] text-zinc-500">
-        Pipeline shows the most recent 1,000 leads so large databases stay fast. Add or edit leads in the Leads tab; on mobile, scroll horizontally to see all columns.
+        Pipeline shows the most recent 1,000 leads so large databases stay fast.
+        Add or edit leads in the Leads tab; on mobile, scroll horizontally to
+        see all columns.
       </p>
     </div>
   );

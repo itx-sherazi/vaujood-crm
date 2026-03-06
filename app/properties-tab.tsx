@@ -2,13 +2,14 @@
 
 import { useTransition, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import type { Property } from "./properties-actions";
+import type { Property, PropertyStatus, PropertyType } from "./properties-actions";
 import {
   createProperty,
   updateProperty,
   deleteProperty,
   duplicateProperty,
   listPropertiesPaginated,
+  updatePropertiesBulk,
 } from "./properties-actions";
 import Modal from "./components/Modal";
 
@@ -32,7 +33,10 @@ const BEDROOMS_OPTIONS: { value: string; label: string }[] = [
   { value: "offices", label: "Offices" },
   { value: "service_based_business", label: "Service-based business" },
   { value: "commercial_offices", label: "Commercial offices" },
-  { value: "financial_and_institutional", label: "Financial and institutional" },
+  {
+    value: "financial_and_institutional",
+    label: "Financial and institutional",
+  },
 ];
 
 interface PropertiesTabProps {
@@ -55,7 +59,35 @@ export default function PropertiesTab({
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [selectedPropertyIds, setSelectedPropertyIds] = useState<Set<string>>(new Set());
+  const [bulkEditOpen, setBulkEditOpen] = useState(false);
   const router = useRouter();
+
+  const toggleSelectProperty = (id: string | undefined) => {
+    if (!id) return;
+    setSelectedPropertyIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllProperties = () => {
+    if (localProperties.length === 0) return;
+    const allSelected = localProperties.every((p) =>
+      selectedPropertyIds.has(p._id ?? ""),
+    );
+    if (allSelected) {
+      setSelectedPropertyIds(new Set());
+    } else {
+      setSelectedPropertyIds(
+        new Set(localProperties.map((p) => p._id ?? "").filter(Boolean)),
+      );
+    }
+  };
+
+  const clearPropertySelection = () => setSelectedPropertyIds(new Set());
 
   useEffect(() => {
     setLocalProperties(initialProperties);
@@ -65,7 +97,10 @@ export default function PropertiesTab({
 
   const loadPage = (page: number) => {
     startTransition(async () => {
-      const { properties, total } = await listPropertiesPaginated(page, pageSize);
+      const { properties, total } = await listPropertiesPaginated(
+        page,
+        pageSize,
+      );
       setLocalProperties(properties);
       setTotalProperties(total);
       setCurrentPage(page);
@@ -129,7 +164,31 @@ export default function PropertiesTab({
         router.refresh();
         loadPage(1);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Failed to duplicate property");
+        setError(
+          e instanceof Error ? e.message : "Failed to duplicate property",
+        );
+      }
+    });
+  };
+
+  const handleBulkEditSubmit = (formData: FormData) => {
+    const ids = Array.from(selectedPropertyIds);
+    if (!ids.length) return;
+    setError(null);
+    startTransition(async () => {
+      try {
+        const bulkStatus = formData.get("bulk-status") as string;
+        const bulkType = formData.get("bulk-type") as string;
+        await updatePropertiesBulk(ids, {
+          status: bulkStatus ? (bulkStatus as PropertyStatus) : undefined,
+          type: bulkType ? (bulkType as PropertyType) : undefined,
+        });
+        setBulkEditOpen(false);
+        setSelectedPropertyIds(new Set());
+        router.refresh();
+        loadPage(currentPage);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Bulk update failed");
       }
     });
   };
@@ -147,9 +206,27 @@ export default function PropertiesTab({
         </div>
       )}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-700">
-          Properties List
-        </h2>
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-700">
+            Properties List
+          </h2>
+          {localProperties.length > 0 && (
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-600">
+              <input
+                type="checkbox"
+                checked={
+                  localProperties.length > 0 &&
+                  localProperties.every((p) =>
+                    selectedPropertyIds.has(p._id ?? ""),
+                  )
+                }
+                onChange={selectAllProperties}
+                className="h-4 w-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              Select all
+            </label>
+          )}
+        </div>
         <button
           type="button"
           onClick={() => {
@@ -184,7 +261,10 @@ export default function PropertiesTab({
           )}
 
           <div className="space-y-1 sm:col-span-2">
-            <label className="text-xs font-medium text-zinc-600" htmlFor="modal-name">
+            <label
+              className="text-xs font-medium text-zinc-600"
+              htmlFor="modal-name"
+            >
               Name *
             </label>
             <input
@@ -198,7 +278,10 @@ export default function PropertiesTab({
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-medium text-zinc-600" htmlFor="modal-location">
+            <label
+              className="text-xs font-medium text-zinc-600"
+              htmlFor="modal-location"
+            >
               Location *
             </label>
             <input
@@ -212,7 +295,10 @@ export default function PropertiesTab({
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-medium text-zinc-600" htmlFor="modal-type">
+            <label
+              className="text-xs font-medium text-zinc-600"
+              htmlFor="modal-type"
+            >
               Type *
             </label>
             <select
@@ -224,14 +310,19 @@ export default function PropertiesTab({
             >
               <option value="residential">Residential</option>
               <option value="commercial">Commercial</option>
-              <option value="residential_commercial">Residential & Commercial</option>
+              <option value="residential_commercial">
+                Residential & Commercial
+              </option>
               <option value="industrial">Industrial</option>
               <option value="land">Land</option>
             </select>
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-medium text-zinc-600" htmlFor="modal-priceResidential">
+            <label
+              className="text-xs font-medium text-zinc-600"
+              htmlFor="modal-priceResidential"
+            >
               Residential rate (PKR)
             </label>
             <input
@@ -239,13 +330,20 @@ export default function PropertiesTab({
               name="priceResidential"
               type="number"
               min={0}
-              defaultValue={editingProperty?.priceResidential ?? editingProperty?.price ?? ""}
+              defaultValue={
+                editingProperty?.priceResidential ??
+                editingProperty?.price ??
+                ""
+              }
               className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
               placeholder="e.g. 1500000"
             />
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-medium text-zinc-600" htmlFor="modal-priceCommercial">
+            <label
+              className="text-xs font-medium text-zinc-600"
+              htmlFor="modal-priceCommercial"
+            >
               Commercial rate (PKR)
             </label>
             <input
@@ -260,7 +358,10 @@ export default function PropertiesTab({
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-medium text-zinc-600" htmlFor="modal-sizeSqft">
+            <label
+              className="text-xs font-medium text-zinc-600"
+              htmlFor="modal-sizeSqft"
+            >
               Size (sqft)
             </label>
             <input
@@ -275,7 +376,10 @@ export default function PropertiesTab({
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-medium text-zinc-600" htmlFor="modal-bedrooms">
+            <label
+              className="text-xs font-medium text-zinc-600"
+              htmlFor="modal-bedrooms"
+            >
               Bedrooms / Unit type
             </label>
             <select
@@ -297,7 +401,10 @@ export default function PropertiesTab({
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-medium text-zinc-600" htmlFor="modal-status">
+            <label
+              className="text-xs font-medium text-zinc-600"
+              htmlFor="modal-status"
+            >
               Status *
             </label>
             <select
@@ -314,7 +421,10 @@ export default function PropertiesTab({
           </div>
 
           <div className="space-y-1 sm:col-span-2">
-            <label className="text-xs font-medium text-zinc-600" htmlFor="modal-shortDescription">
+            <label
+              className="text-xs font-medium text-zinc-600"
+              htmlFor="modal-shortDescription"
+            >
               Short Description
             </label>
             <textarea
@@ -349,13 +459,99 @@ export default function PropertiesTab({
         </form>
       </Modal>
 
+      {selectedPropertyIds.size > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50/80 px-4 py-2.5 text-sm">
+          <span className="font-medium text-emerald-800">
+            {selectedPropertyIds.size} selected
+          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setBulkEditOpen(true)}
+              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+            >
+              Bulk edit
+            </button>
+            <button
+              type="button"
+              onClick={clearPropertySelection}
+              className="rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+            >
+              Clear selection
+            </button>
+          </div>
+        </div>
+      )}
+
+      <Modal
+        open={bulkEditOpen}
+        onClose={() => setBulkEditOpen(false)}
+        title={`Bulk edit ${selectedPropertyIds.size} property(ies)`}
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleBulkEditSubmit(new FormData(e.currentTarget));
+          }}
+          className="flex flex-col gap-3"
+        >
+          <p className="text-xs text-zinc-500">
+            Set the same value for all selected properties. Leave blank to keep
+            current.
+          </p>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-zinc-600">Status</label>
+            <select
+              name="bulk-status"
+              className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+            >
+              <option value="">— Keep current —</option>
+              <option value="available">Available</option>
+              <option value="under_offer">Under Offer</option>
+              <option value="sold">Sold</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-zinc-600">Type</label>
+            <select
+              name="bulk-type"
+              className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+            >
+              <option value="">— Keep current —</option>
+              <option value="residential">Residential</option>
+              <option value="commercial">Commercial</option>
+              <option value="residential_commercial">Residential & Commercial</option>
+              <option value="industrial">Industrial</option>
+              <option value="land">Land</option>
+            </select>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setBulkEditOpen(false)}
+              className="min-h-[44px] rounded-lg border border-zinc-300 px-4 py-2.5 text-sm font-medium text-zinc-600 hover:bg-zinc-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isPending}
+              className="min-h-[44px] rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-600 disabled:opacity-60"
+            >
+              {isPending ? "Updating…" : "Update selected"}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
       <Modal
         open={deleteConfirmId != null}
         onClose={() => setDeleteConfirmId(null)}
         title="Delete property?"
       >
         <p className="text-sm text-zinc-600">
-          Are you sure you want to delete this property? This action cannot be undone.
+          Are you sure you want to delete this property? This action cannot be
+          undone.
         </p>
         <div className="mt-4 flex justify-end gap-2">
           <button
@@ -392,16 +588,31 @@ export default function PropertiesTab({
             {localProperties.map((property) => (
               <article
                 key={property._id}
-                className="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm"
+                className={`flex flex-col gap-3 rounded-xl border p-4 shadow-sm ${
+                  selectedPropertyIds.has(property._id ?? "")
+                    ? "border-emerald-400 bg-emerald-50/50"
+                    : "border-zinc-200 bg-white"
+                }`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1 space-y-0.5">
-                    <h3 className="break-words text-sm font-semibold text-zinc-800">
-                      {property.name}
-                    </h3>
-                    <p className="break-words text-xs text-zinc-500">
-                      {property.location}
-                    </p>
+                  <div className="flex min-w-0 flex-1 items-start gap-2">
+                    <label className="shrink-0 cursor-pointer pt-0.5">
+                      <input
+                        type="checkbox"
+                        checked={selectedPropertyIds.has(property._id ?? "")}
+                        onChange={() => toggleSelectProperty(property._id)}
+                        className="h-4 w-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <span className="sr-only">Select {property.name}</span>
+                    </label>
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <h3 className="break-words text-sm font-semibold text-zinc-800">
+                        {property.name}
+                      </h3>
+                      <p className="break-words text-xs text-zinc-500">
+                        {property.location}
+                      </p>
+                    </div>
                   </div>
                   <span className="shrink-0 rounded-full bg-zinc-100 px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-zinc-600">
                     {TYPE_LABELS[property.type] ?? property.type}
@@ -411,29 +622,34 @@ export default function PropertiesTab({
                 <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-600">
                   {(property.priceResidential ?? 0) > 0 && (
                     <span className="rounded-full bg-sky-50 px-2 py-1 font-medium text-sky-700">
-                      Residential: PKR {(property.priceResidential ?? 0).toLocaleString()}
+                      Residential: PKR{" "}
+                      {(property.priceResidential ?? 0).toLocaleString()}
                     </span>
                   )}
                   {(property.priceCommercial ?? 0) > 0 && (
                     <span className="rounded-full bg-amber-50 px-2 py-1 font-medium text-amber-700">
-                      Commercial: PKR {(property.priceCommercial ?? 0).toLocaleString()}
+                      Commercial: PKR{" "}
+                      {(property.priceCommercial ?? 0).toLocaleString()}
                     </span>
                   )}
-                  {(property.priceResidential ?? 0) <= 0 && (property.priceCommercial ?? 0) <= 0 && property.price > 0 && (
-                    <span className="rounded-full bg-emerald-50 px-2 py-1 font-medium text-emerald-700">
-                      PKR {property.price.toLocaleString()}
-                    </span>
-                  )}
+                  {(property.priceResidential ?? 0) <= 0 &&
+                    (property.priceCommercial ?? 0) <= 0 &&
+                    property.price > 0 && (
+                      <span className="rounded-full bg-emerald-50 px-2 py-1 font-medium text-emerald-700">
+                        PKR {property.price.toLocaleString()}
+                      </span>
+                    )}
                   {property.sizeSqft > 0 && (
                     <span className="rounded-full bg-zinc-100 px-2 py-1">
                       {property.sizeSqft} sqft
                     </span>
                   )}
-                  {property.bedrooms != null && String(property.bedrooms) !== "" && (
-                    <span className="rounded-full bg-zinc-100 px-2 py-1">
-                      {bedroomsLabel(String(property.bedrooms))}
-                    </span>
-                  )}
+                  {property.bedrooms != null &&
+                    String(property.bedrooms) !== "" && (
+                      <span className="rounded-full bg-zinc-100 px-2 py-1">
+                        {bedroomsLabel(String(property.bedrooms))}
+                      </span>
+                    )}
                   <StatusBadge status={property.status} />
                 </div>
 

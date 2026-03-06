@@ -194,3 +194,22 @@ export async function deleteProperty(formData: FormData) {
   revalidatePath("/");
 }
 
+/** Bulk update selected properties (status, type). */
+export async function updatePropertiesBulk(
+  ids: string[],
+  updates: { status?: PropertyStatus; type?: PropertyType },
+) {
+  if (!ids.length) return;
+  const db = await getDb();
+  const col = db.collection(COLLECTION);
+  const set: Record<string, unknown> = { updatedAt: new Date() };
+  if (updates.status != null) set.status = updates.status;
+  if (updates.type != null) set.type = updates.type;
+  if (Object.keys(set).length <= 1) return;
+  await col.updateMany(
+    { _id: { $in: ids.map((id) => new ObjectId(id)) } },
+    { $set: set },
+  );
+  revalidatePath("/");
+}
+

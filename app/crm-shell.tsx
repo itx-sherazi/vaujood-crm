@@ -10,7 +10,13 @@ import ReportTab from "./report-tab";
 import type { Property } from "./properties-actions";
 import type { Lead } from "./leads-actions";
 
-type TabId = "properties" | "leads" | "kanban" | "charts" | "calendar" | "report";
+type TabId =
+  | "properties"
+  | "leads"
+  | "kanban"
+  | "charts"
+  | "calendar"
+  | "report";
 
 interface CrmShellProps {
   initialProperties: Property[];
@@ -133,13 +139,15 @@ export default function CrmShell({
               pageSize={pageSize}
             />
           )}
-          {activeTab === "kanban" && (
-            <KanbanTab initialLeads={kanbanLeads} />
-          )}
+          {activeTab === "kanban" && <KanbanTab initialLeads={kanbanLeads} />}
           {activeTab === "charts" && <ChartsTab />}
           {activeTab === "calendar" && <CalendarTab />}
           {activeTab === "report" && <ReportTab />}
         </section>
+
+        <footer className="mt-6 border-t border-zinc-200 py-4 text-center text-xs text-zinc-500">
+          Made by Umair with love <span className="text-red-500" aria-hidden="true">♥</span> @2026
+        </footer>
       </main>
     </div>
   );

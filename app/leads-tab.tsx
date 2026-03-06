@@ -10,6 +10,8 @@ import {
   duplicateLead,
   listLeadsPaginated,
   importLeadsBulk,
+  updateLeadsBulk,
+  updateLeadMarkCalled,
 } from "./leads-actions";
 import { getPropertyOptions } from "./properties-actions";
 import Modal from "./components/Modal";
@@ -28,6 +30,16 @@ function whatsAppUrl(phone: string): string {
   else if (num.length === 10 && num.startsWith("3")) num = "92" + num;
   else if (num.length < 10) return "";
   return `https://wa.me/${num}`;
+}
+
+function telUrl(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 0) return "";
+  let num = digits;
+  if (num.startsWith("0") && num.length === 11) num = "92" + num.slice(1);
+  else if (num.length === 10 && num.startsWith("3")) num = "92" + num;
+  else if (num.length < 10) return "";
+  return `tel:+${num}`;
 }
 
 const STAGE_OPTIONS: { value: LeadStage; label: string }[] = [
@@ -54,7 +66,10 @@ const PROPERTY_INTEREST_OPTIONS: { value: string; label: string }[] = [
   { value: "offices", label: "Offices" },
   { value: "service_based_business", label: "Service-based business" },
   { value: "commercial_offices", label: "Commercial offices" },
-  { value: "financial_and_institutional", label: "Financial and institutional" },
+  {
+    value: "financial_and_institutional",
+    label: "Financial and institutional",
+  },
 ];
 
 export default function LeadsTab({
@@ -70,10 +85,46 @@ export default function LeadsTab({
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [propertyOptions, setPropertyOptions] = useState<{ _id: string; name: string }[]>([]);
-  const [uploadResult, setUploadResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null);
+  const [propertyOptions, setPropertyOptions] = useState<
+    { _id: string; name: string }[]
+  >([]);
+  const [uploadResult, setUploadResult] = useState<{
+    imported: number;
+    skipped: number;
+    errors: string[];
+  } | null>(null);
+  const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
+  const [bulkEditOpen, setBulkEditOpen] = useState(false);
+  const [filterPropertyId, setFilterPropertyId] = useState("");
+  const [filterPropertyInterest, setFilterPropertyInterest] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+
+  const toggleSelectLead = (id: string | undefined) => {
+    if (!id) return;
+    setSelectedLeadIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllLeads = () => {
+    if (localLeads.length === 0) return;
+    const allSelected = localLeads.every((l) =>
+      selectedLeadIds.has(l._id ?? ""),
+    );
+    if (allSelected) {
+      setSelectedLeadIds(new Set());
+    } else {
+      setSelectedLeadIds(
+        new Set(localLeads.map((l) => l._id ?? "").filter(Boolean)),
+      );
+    }
+  };
+
+  const clearLeadSelection = () => setSelectedLeadIds(new Set());
 
   useEffect(() => {
     getPropertyOptions().then(setPropertyOptions);
@@ -87,12 +138,25 @@ export default function LeadsTab({
 
   const loadPage = (page: number) => {
     startTransition(async () => {
-      const { leads, total } = await listLeadsPaginated(page, pageSize);
+      const filters = {
+        propertyId: filterPropertyId.trim() || undefined,
+        propertyInterest: filterPropertyInterest.trim() || undefined,
+      };
+      const { leads, total } = await listLeadsPaginated(page, pageSize, filters);
       setLocalLeads(leads);
       setTotalLeads(total);
       setCurrentPage(page);
     });
   };
+
+  const filtersChangedRef = useRef(false);
+  useEffect(() => {
+    if (!filtersChangedRef.current) {
+      filtersChangedRef.current = true;
+      return;
+    }
+    loadPage(1);
+  }, [filterPropertyId, filterPropertyInterest]);
 
   const handleCreate = (formData: FormData) => {
     setError(null);
@@ -172,7 +236,10 @@ export default function LeadsTab({
           setError("No sheet found in file");
           return;
         }
-        const rows = XLSX.utils.sheet_to_json(firstSheet) as Record<string, unknown>[];
+        const rows = XLSX.utils.sheet_to_json(firstSheet) as Record<
+          string,
+          unknown
+        >[];
         const stringRows: Record<string, string>[] = rows.map((r) => {
           const out: Record<string, string> = {};
           for (const [k, v] of Object.entries(r)) {
@@ -190,8 +257,35 @@ export default function LeadsTab({
     });
   };
 
-  const totalPages =
-    totalLeads === 0 ? 1 : Math.ceil(totalLeads / pageSize);
+  const handleBulkEditSubmit = (formData: FormData) => {
+    const ids = Array.from(selectedLeadIds);
+    if (!ids.length) return;
+    setError(null);
+    startTransition(async () => {
+      try {
+        const bulkStage = formData.get("bulk-stage") as string;
+        const bulkPriority = formData.get("bulk-priority") as string;
+        const bulkAssignedTo = formData.get("bulk-assignedTo") as string;
+        const bulkPropertyInterest = String(formData.get("bulk-propertyInterest") || "").trim();
+        const bulkPropertyId = formData.get("bulk-propertyId");
+        await updateLeadsBulk(ids, {
+          stage: bulkStage ? (bulkStage as LeadStage) : undefined,
+          priority: bulkPriority ? (bulkPriority as LeadPriority) : undefined,
+          assignedTo: bulkAssignedTo ? (bulkAssignedTo as "Sheraz" | "Umair") : undefined,
+          propertyInterest: bulkPropertyInterest || undefined,
+          propertyId: bulkPropertyId && String(bulkPropertyId).trim() ? String(bulkPropertyId).trim() : undefined,
+        });
+        setBulkEditOpen(false);
+        setSelectedLeadIds(new Set());
+        router.refresh();
+        loadPage(currentPage);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Bulk update failed");
+      }
+    });
+  };
+
+  const totalPages = totalLeads === 0 ? 1 : Math.ceil(totalLeads / pageSize);
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = Math.min(startIndex + pageSize, totalLeads);
 
@@ -203,9 +297,25 @@ export default function LeadsTab({
         </div>
       )}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-700">
-          Leads List
-        </h2>
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-700">
+            Leads List
+          </h2>
+          {localLeads.length > 0 && (
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-600">
+              <input
+                type="checkbox"
+                checked={
+                  localLeads.length > 0 &&
+                  localLeads.every((l) => selectedLeadIds.has(l._id ?? ""))
+                }
+                onChange={selectAllLeads}
+                className="h-4 w-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              Select all
+            </label>
+          )}
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <input
             ref={fileInputRef}
@@ -238,7 +348,9 @@ export default function LeadsTab({
 
       {uploadResult && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          <p className="font-medium">Import complete: {uploadResult.imported} lead(s) added.</p>
+          <p className="font-medium">
+            Import complete: {uploadResult.imported} lead(s) added.
+          </p>
           {uploadResult.errors.length > 0 && (
             <ul className="mt-2 list-inside list-disc text-amber-700">
               {uploadResult.errors.slice(0, 10).map((msg, i) => (
@@ -251,6 +363,61 @@ export default function LeadsTab({
           )}
         </div>
       )}
+
+      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-zinc-200 bg-zinc-50/80 px-4 py-3">
+        <span className="text-xs font-medium text-zinc-600">Filters:</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-1.5 text-sm text-zinc-700">
+            <span className="text-xs">Property</span>
+            <select
+              value={filterPropertyId}
+              onChange={(e) => {
+                setFilterPropertyId(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+            >
+              <option value="">All properties</option>
+              {propertyOptions.map((p) => (
+                <option key={p._id} value={p._id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-1.5 text-sm text-zinc-700">
+            <span className="text-xs">Unit / Interest</span>
+            <select
+              value={filterPropertyInterest}
+              onChange={(e) => {
+                setFilterPropertyInterest(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+            >
+              <option value="">All (1 BHK, 2 BHK, etc.)</option>
+              {PROPERTY_INTEREST_OPTIONS.filter((o) => o.value).map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {(filterPropertyId || filterPropertyInterest) && (
+            <button
+              type="button"
+              onClick={() => {
+                setFilterPropertyId("");
+                setFilterPropertyInterest("");
+                setCurrentPage(1);
+              }}
+              className="rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+      </div>
 
       <Modal
         open={modalOpen}
@@ -274,7 +441,10 @@ export default function LeadsTab({
           )}
 
           <div className="space-y-1 sm:col-span-2">
-            <label className="text-xs font-medium text-zinc-600" htmlFor="modal-companyName">
+            <label
+              className="text-xs font-medium text-zinc-600"
+              htmlFor="modal-companyName"
+            >
               Company / Name *
             </label>
             <input
@@ -288,7 +458,10 @@ export default function LeadsTab({
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-medium text-zinc-600" htmlFor="modal-contactPerson">
+            <label
+              className="text-xs font-medium text-zinc-600"
+              htmlFor="modal-contactPerson"
+            >
               Contact Person
             </label>
             <input
@@ -301,7 +474,10 @@ export default function LeadsTab({
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-medium text-zinc-600" htmlFor="modal-email">
+            <label
+              className="text-xs font-medium text-zinc-600"
+              htmlFor="modal-email"
+            >
               Email
             </label>
             <input
@@ -315,7 +491,10 @@ export default function LeadsTab({
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-medium text-zinc-600" htmlFor="modal-phone">
+            <label
+              className="text-xs font-medium text-zinc-600"
+              htmlFor="modal-phone"
+            >
               Phone
             </label>
             <input
@@ -328,7 +507,10 @@ export default function LeadsTab({
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-medium text-zinc-600" htmlFor="modal-dealValueAed">
+            <label
+              className="text-xs font-medium text-zinc-600"
+              htmlFor="modal-dealValueAed"
+            >
               Deal Value (PKR)
             </label>
             <input
@@ -343,7 +525,10 @@ export default function LeadsTab({
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-medium text-zinc-600" htmlFor="modal-propertyId">
+            <label
+              className="text-xs font-medium text-zinc-600"
+              htmlFor="modal-propertyId"
+            >
               Property
             </label>
             <select
@@ -362,7 +547,10 @@ export default function LeadsTab({
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-medium text-zinc-600" htmlFor="modal-propertyInterest">
+            <label
+              className="text-xs font-medium text-zinc-600"
+              htmlFor="modal-propertyInterest"
+            >
               Property Interest
             </label>
             <select
@@ -380,7 +568,10 @@ export default function LeadsTab({
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-medium text-zinc-600" htmlFor="modal-stage">
+            <label
+              className="text-xs font-medium text-zinc-600"
+              htmlFor="modal-stage"
+            >
               Stage
             </label>
             <select
@@ -398,7 +589,10 @@ export default function LeadsTab({
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-medium text-zinc-600" htmlFor="modal-priority">
+            <label
+              className="text-xs font-medium text-zinc-600"
+              htmlFor="modal-priority"
+            >
               Priority
             </label>
             <select
@@ -416,7 +610,10 @@ export default function LeadsTab({
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-medium text-zinc-600" htmlFor="modal-source">
+            <label
+              className="text-xs font-medium text-zinc-600"
+              htmlFor="modal-source"
+            >
               Source
             </label>
             <input
@@ -429,7 +626,10 @@ export default function LeadsTab({
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-medium text-zinc-600" htmlFor="modal-assignedTo">
+            <label
+              className="text-xs font-medium text-zinc-600"
+              htmlFor="modal-assignedTo"
+            >
               Assigned To
             </label>
             <select
@@ -444,7 +644,10 @@ export default function LeadsTab({
           </div>
 
           <div className="space-y-1 sm:col-span-2">
-            <label className="text-xs font-medium text-zinc-600" htmlFor="modal-notes">
+            <label
+              className="text-xs font-medium text-zinc-600"
+              htmlFor="modal-notes"
+            >
               Notes
             </label>
             <textarea
@@ -479,13 +682,140 @@ export default function LeadsTab({
         </form>
       </Modal>
 
+      {selectedLeadIds.size > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50/80 px-4 py-2.5 text-sm">
+          <span className="font-medium text-emerald-800">
+            {selectedLeadIds.size} selected
+          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setBulkEditOpen(true)}
+              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+            >
+              Bulk edit
+            </button>
+            <button
+              type="button"
+              onClick={clearLeadSelection}
+              className="rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+            >
+              Clear selection
+            </button>
+          </div>
+        </div>
+      )}
+
+      <Modal
+        open={bulkEditOpen}
+        onClose={() => setBulkEditOpen(false)}
+        title={`Bulk edit ${selectedLeadIds.size} lead(s)`}
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleBulkEditSubmit(new FormData(e.currentTarget));
+          }}
+          className="flex flex-col gap-3"
+        >
+          <p className="text-xs text-zinc-500">
+            Set the same value for all selected leads. Leave blank to keep
+            current.
+          </p>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-zinc-600">Stage</label>
+            <select
+              name="bulk-stage"
+              className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+            >
+              <option value="">— Keep current —</option>
+              {STAGE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-zinc-600">Priority</label>
+            <select
+              name="bulk-priority"
+              className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+            >
+              <option value="">— Keep current —</option>
+              {PRIORITY_OPTIONS.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-zinc-600">Assigned To</label>
+            <select
+              name="bulk-assignedTo"
+              className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+            >
+              <option value="">— Keep current —</option>
+              <option value="Sheraz">Sheraz</option>
+              <option value="Umair">Umair</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-zinc-600">Property Interest</label>
+            <select
+              name="bulk-propertyInterest"
+              className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+            >
+              <option value="">— Keep current —</option>
+              {PROPERTY_INTEREST_OPTIONS.filter((o) => o.value).map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-zinc-600">Property</label>
+            <select
+              name="bulk-propertyId"
+              className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+            >
+              <option value="">— Keep current —</option>
+              {propertyOptions.map((p) => (
+                <option key={p._id} value={p._id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setBulkEditOpen(false)}
+              className="min-h-[44px] rounded-lg border border-zinc-300 px-4 py-2.5 text-sm font-medium text-zinc-600 hover:bg-zinc-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isPending}
+              className="min-h-[44px] rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-600 disabled:opacity-60"
+            >
+              {isPending ? "Updating…" : "Update selected"}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
       <Modal
         open={deleteConfirmId != null}
         onClose={() => setDeleteConfirmId(null)}
         title="Delete lead?"
       >
         <p className="text-sm text-zinc-600">
-          Are you sure you want to delete this lead? This action cannot be undone.
+          Are you sure you want to delete this lead? This action cannot be
+          undone.
         </p>
         <div className="mt-4 flex justify-end gap-2">
           <button
@@ -522,20 +852,44 @@ export default function LeadsTab({
             {localLeads.map((lead) => (
               <article
                 key={lead._id}
-                className="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm"
+                className={`flex flex-col gap-3 rounded-xl border p-4 shadow-sm ${
+                  selectedLeadIds.has(lead._id ?? "")
+                    ? "border-emerald-400 bg-emerald-50/50"
+                    : lead.calledAt
+                      ? "border-sky-400 bg-sky-50/80"
+                      : "border-zinc-200 bg-white"
+                }`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1 space-y-0.5">
-                    <h3 className="truncate text-sm font-semibold text-zinc-800">
-                      {lead.companyName}
-                    </h3>
-                    <p className="truncate text-xs text-zinc-500">
-                      {lead.contactPerson}
-                    </p>
+                  <div className="flex min-w-0 flex-1 items-start gap-2">
+                    <label className="shrink-0 cursor-pointer pt-0.5">
+                      <input
+                        type="checkbox"
+                        checked={selectedLeadIds.has(lead._id ?? "")}
+                        onChange={() => toggleSelectLead(lead._id)}
+                        className="h-4 w-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <span className="sr-only">Select {lead.companyName}</span>
+                    </label>
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <h3 className="truncate text-sm font-semibold text-zinc-800">
+                        {lead.companyName}
+                      </h3>
+                      <p className="truncate text-xs text-zinc-500">
+                        {lead.contactPerson}
+                      </p>
+                    </div>
                   </div>
-                  <span className="shrink-0 rounded-full bg-zinc-100 px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-zinc-600">
-                    {stageLabel(lead.stage)}
-                  </span>
+                  <div className="flex shrink-0 flex-wrap items-center gap-1">
+                    {lead.calledAt && (
+                      <span className="rounded-full bg-sky-100 px-2 py-1 text-[10px] font-medium text-sky-700">
+                        Called
+                      </span>
+                    )}
+                    <span className="rounded-full bg-zinc-100 px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-zinc-600">
+                      {stageLabel(lead.stage)}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-600">
@@ -558,7 +912,11 @@ export default function LeadsTab({
 
                 {(lead.propertyId || lead.propertyInterest) && (
                   <p className="text-xs text-zinc-500">
-                    Property: {lead.propertyId ? (propertyOptions.find((p) => p._id === lead.propertyId)?.name ?? lead.propertyId) : propertyInterestLabel(lead.propertyInterest)}
+                    Property:{" "}
+                    {lead.propertyId
+                      ? (propertyOptions.find((p) => p._id === lead.propertyId)
+                          ?.name ?? lead.propertyId)
+                      : propertyInterestLabel(lead.propertyInterest)}
                   </p>
                 )}
 
@@ -573,6 +931,29 @@ export default function LeadsTab({
                     {lead._id}
                   </span>
                   <div className="flex flex-wrap items-center gap-2">
+                    {lead.phone && telUrl(lead.phone) && (
+                      <a
+                        href={telUrl(lead.phone)}
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          if (!lead._id) return;
+                          await updateLeadMarkCalled(lead._id);
+                          setLocalLeads((prev) =>
+                            prev.map((l) =>
+                              l._id === lead._id
+                                ? { ...l, calledAt: new Date().toISOString() }
+                                : l,
+                            ),
+                          );
+                          window.location.href = telUrl(lead.phone);
+                        }}
+                        className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+                        aria-label="Call"
+                      >
+                        <PhoneIcon className="h-4 w-4" />
+                        {lead.calledAt ? "Called" : "Call"}
+                      </a>
+                    )}
                     {lead.phone && whatsAppUrl(lead.phone) && (
                       <a
                         href={whatsAppUrl(lead.phone)}
@@ -656,6 +1037,14 @@ export function propertyInterestLabel(value: string): string {
   if (value === "detail_shop") return "Retail Shop";
   const found = PROPERTY_INTEREST_OPTIONS.find((o) => o.value === value);
   return found?.label ?? value;
+}
+
+function PhoneIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
+    </svg>
+  );
 }
 
 function WhatsAppIcon({ className }: { className?: string }) {

@@ -31,11 +31,13 @@ export interface Lead {
   source: string;
   assignedTo: "Sheraz" | "Umair";
   notes?: string;
+  /** When the lead was last marked as called (click on Call button) */
+  calledAt?: string;
 }
 
 const COLLECTION = "leads";
 
-function toLead(doc: { _id: { toString(): string }; companyName?: string; contactPerson?: string; email?: string; phone?: string; dealValueAed?: number; propertyInterest?: string; propertyId?: string; stage?: string; priority?: string; source?: string; assignedTo?: string; notes?: string }): Lead {
+function toLead(doc: { _id: { toString(): string }; companyName?: string; contactPerson?: string; email?: string; phone?: string; dealValueAed?: number; propertyInterest?: string; propertyId?: string; stage?: string; priority?: string; source?: string; assignedTo?: string; notes?: string; calledAt?: Date | string }): Lead {
   return {
     _id: doc._id.toString(),
     companyName: doc.companyName ?? "",
@@ -50,6 +52,7 @@ function toLead(doc: { _id: { toString(): string }; companyName?: string; contac
     source: doc.source ?? "",
     assignedTo: (doc.assignedTo as "Sheraz" | "Umair") ?? "Sheraz",
     notes: doc.notes ?? "",
+    calledAt: doc.calledAt ? (typeof doc.calledAt === "string" ? doc.calledAt : new Date(doc.calledAt).toISOString()) : undefined,
   };
 }
 
@@ -63,16 +66,25 @@ export async function listLeads(): Promise<Lead[]> {
   return docs.map((d) => toLead(d as Parameters<typeof toLead>[0]));
 }
 
+export type LeadListFilters = {
+  propertyId?: string;
+  propertyInterest?: string;
+};
+
 export async function listLeadsPaginated(
   page: number,
   limit: number,
+  filters?: LeadListFilters,
 ): Promise<{ leads: Lead[]; total: number }> {
   const db = await getDb();
   const col = db.collection(COLLECTION);
+  const query: Record<string, unknown> = {};
+  if (filters?.propertyId && filters.propertyId.trim()) query.propertyId = filters.propertyId.trim();
+  if (filters?.propertyInterest != null && String(filters.propertyInterest).trim()) query.propertyInterest = String(filters.propertyInterest).trim();
   const skip = (page - 1) * limit;
   const [docs, total] = await Promise.all([
-    col.find({}).sort({ createdAt: -1 }).skip(skip).limit(limit).toArray(),
-    col.countDocuments(),
+    col.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).toArray(),
+    col.countDocuments(query),
   ]);
   const leads = docs.map((d) => toLead(d as Parameters<typeof toLead>[0]));
   return { leads, total };
@@ -344,6 +356,46 @@ export async function deleteLead(formData: FormData) {
   const db = await getDb();
   const col = db.collection(COLLECTION);
   await col.deleteOne({ _id: new ObjectId(id) });
+  revalidatePath("/");
+}
+
+/** Mark lead as called (used when user clicks Call button). */
+export async function updateLeadMarkCalled(id: string) {
+  if (!id) return;
+  const db = await getDb();
+  const col = db.collection(COLLECTION);
+  await col.updateOne(
+    { _id: new ObjectId(id) },
+    { $set: { calledAt: new Date(), updatedAt: new Date() } },
+  );
+  revalidatePath("/");
+}
+
+/** Bulk update selected leads with common fields (stage, priority, assignedTo, etc.). */
+export async function updateLeadsBulk(
+  ids: string[],
+  updates: {
+    stage?: LeadStage;
+    priority?: LeadPriority;
+    assignedTo?: "Sheraz" | "Umair";
+    propertyInterest?: string;
+    propertyId?: string | null;
+  },
+) {
+  if (!ids.length) return;
+  const db = await getDb();
+  const col = db.collection(COLLECTION);
+  const set: Record<string, unknown> = { updatedAt: new Date() };
+  if (updates.stage != null) set.stage = updates.stage;
+  if (updates.priority != null) set.priority = updates.priority;
+  if (updates.assignedTo != null) set.assignedTo = updates.assignedTo;
+  if (updates.propertyInterest != null) set.propertyInterest = updates.propertyInterest;
+  if (updates.propertyId !== undefined) set.propertyId = updates.propertyId ?? null;
+  if (Object.keys(set).length <= 1) return;
+  await col.updateMany(
+    { _id: { $in: ids.map((id) => new ObjectId(id)) } },
+    { $set: set },
+  );
   revalidatePath("/");
 }
 

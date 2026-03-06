@@ -51,13 +51,19 @@ export default function ChartsTab() {
   }
 
   const propertyData = stats.byProperty.map((p) => ({
-    name: p.propertyName.length > 18 ? p.propertyName.slice(0, 18) + "…" : p.propertyName,
+    name:
+      p.propertyName.length > 18
+        ? p.propertyName.slice(0, 18) + "…"
+        : p.propertyName,
     fullName: p.propertyName,
     count: p.count,
   }));
 
   const sourceData = stats.bySource.map((s) => ({
-    name: (s.source || "(not set)").length > 14 ? (s.source || "(not set)").slice(0, 14) + "…" : (s.source || "(not set)"),
+    name:
+      (s.source || "(not set)").length > 14
+        ? (s.source || "(not set)").slice(0, 14) + "…"
+        : s.source || "(not set)",
     fullName: s.source || "(not set)",
     count: s.count,
   }));
@@ -79,13 +85,18 @@ export default function ChartsTab() {
         </p>
         <div className="mt-3 h-[280px] w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={propertyData} margin={{ top: 8, right: 8, left: 0, bottom: 24 }}>
+            <BarChart
+              data={propertyData}
+              margin={{ top: 8, right: 8, left: 0, bottom: 24 }}
+            >
               <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" />
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
               <Tooltip
                 formatter={(value: number) => [value, "Leads"]}
-                labelFormatter={(_, payload) => payload[0]?.payload?.fullName ?? ""}
+                labelFormatter={(_, payload) =>
+                  payload[0]?.payload?.fullName ?? ""
+                }
               />
               <Bar dataKey="count" fill="#10b981" radius={[4, 4, 0, 0]} />
             </BarChart>
@@ -97,18 +108,21 @@ export default function ChartsTab() {
         <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-700">
           Leads by Source
         </h2>
-        <p className="text-xs text-zinc-500">
-          Kis source se leads add ki hain
-        </p>
+        <p className="text-xs text-zinc-500">Kis source se leads add ki hain</p>
         <div className="mt-3 h-[280px] w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={sourceData} margin={{ top: 8, right: 8, left: 0, bottom: 24 }}>
+            <BarChart
+              data={sourceData}
+              margin={{ top: 8, right: 8, left: 0, bottom: 24 }}
+            >
               <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" />
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
               <Tooltip
                 formatter={(value: number) => [value, "Leads"]}
-                labelFormatter={(_, payload) => payload[0]?.payload?.fullName ?? ""}
+                labelFormatter={(_, payload) =>
+                  payload[0]?.payload?.fullName ?? ""
+                }
               />
               <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
             </BarChart>
@@ -125,7 +139,10 @@ export default function ChartsTab() {
         </p>
         <div className="mt-3 h-[280px] w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={stageData} margin={{ top: 8, right: 8, left: 0, bottom: 24 }}>
+            <BarChart
+              data={stageData}
+              margin={{ top: 8, right: 8, left: 0, bottom: 24 }}
+            >
               <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" />
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />

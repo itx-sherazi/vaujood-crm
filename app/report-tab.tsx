@@ -54,7 +54,11 @@ function buildPdfAndDownload(dateStr: string, leads: Lead[]): void {
   doc.setFontSize(10);
   doc.setTextColor(80, 80, 80);
   doc.text(formatReportDate(dateStr), margin, y);
-  doc.text(`${leads.length} lead(s) added`, pageW - margin - doc.getTextWidth(`${leads.length} lead(s) added`), y);
+  doc.text(
+    `${leads.length} lead(s) added`,
+    pageW - margin - doc.getTextWidth(`${leads.length} lead(s) added`),
+    y,
+  );
   y += 10;
 
   const headers = [
@@ -98,7 +102,9 @@ function buildPdfAndDownload(dateStr: string, leads: Lead[]): void {
     tableLineWidth: 0.2,
   });
 
-  y = (doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? y;
+  y =
+    (doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable
+      ?.finalY ?? y;
   y += 10;
 
   doc.setFontSize(8);
@@ -136,7 +142,10 @@ export default function ReportTab() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1">
-          <label className="text-xs font-medium text-zinc-600" htmlFor="report-date">
+          <label
+            className="text-xs font-medium text-zinc-600"
+            htmlFor="report-date"
+          >
             Report date
           </label>
           <input
@@ -167,7 +176,8 @@ export default function ReportTab() {
       </div>
 
       <p className="text-xs text-zinc-500">
-        Daily report shows all leads added on the selected date. Phone numbers and email are not included so you can forward or share the PDF safely.
+        Daily report shows all leads added on the selected date. Phone numbers
+        and email are not included so you can forward or share the PDF safely.
       </p>
 
       {leads && (
@@ -176,39 +186,75 @@ export default function ReportTab() {
             {formatReportDate(dateStr)} — {leads.length} lead(s)
           </p>
           {leads.length === 0 ? (
-            <p className="text-sm text-zinc-500">No leads added on this date.</p>
+            <p className="text-sm text-zinc-500">
+              No leads added on this date.
+            </p>
           ) : (
             <div className="overflow-x-auto rounded-lg border border-zinc-200">
               <table className="w-full min-w-[800px] border-collapse text-left text-sm">
                 <thead>
                   <tr className="border-b border-zinc-200 bg-zinc-50">
-                    <th className="px-3 py-2 font-medium text-zinc-700">Company / Name</th>
-                    <th className="px-3 py-2 font-medium text-zinc-700">Contact Person</th>
-                    <th className="px-3 py-2 font-medium text-zinc-700">Deal Value</th>
-                    <th className="px-3 py-2 font-medium text-zinc-700">Property Interest</th>
-                    <th className="px-3 py-2 font-medium text-zinc-700">Stage</th>
-                    <th className="px-3 py-2 font-medium text-zinc-700">Priority</th>
-                    <th className="px-3 py-2 font-medium text-zinc-700">Source</th>
-                    <th className="px-3 py-2 font-medium text-zinc-700">Assigned To</th>
-                    <th className="px-3 py-2 font-medium text-zinc-700">Notes</th>
+                    <th className="px-3 py-2 font-medium text-zinc-700">
+                      Company / Name
+                    </th>
+                    <th className="px-3 py-2 font-medium text-zinc-700">
+                      Contact Person
+                    </th>
+                    <th className="px-3 py-2 font-medium text-zinc-700">
+                      Deal Value
+                    </th>
+                    <th className="px-3 py-2 font-medium text-zinc-700">
+                      Property Interest
+                    </th>
+                    <th className="px-3 py-2 font-medium text-zinc-700">
+                      Stage
+                    </th>
+                    <th className="px-3 py-2 font-medium text-zinc-700">
+                      Priority
+                    </th>
+                    <th className="px-3 py-2 font-medium text-zinc-700">
+                      Source
+                    </th>
+                    <th className="px-3 py-2 font-medium text-zinc-700">
+                      Assigned To
+                    </th>
+                    <th className="px-3 py-2 font-medium text-zinc-700">
+                      Notes
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {leads.map((lead) => (
                     <tr key={lead._id} className="border-b border-zinc-100">
-                      <td className="px-3 py-2 text-zinc-800">{lead.companyName}</td>
-                      <td className="px-3 py-2 text-zinc-600">{lead.contactPerson}</td>
+                      <td className="px-3 py-2 text-zinc-800">
+                        {lead.companyName}
+                      </td>
                       <td className="px-3 py-2 text-zinc-600">
-                        {lead.dealValueAed > 0 ? "PKR " + lead.dealValueAed.toLocaleString() : "-"}
+                        {lead.contactPerson}
+                      </td>
+                      <td className="px-3 py-2 text-zinc-600">
+                        {lead.dealValueAed > 0
+                          ? "PKR " + lead.dealValueAed.toLocaleString()
+                          : "-"}
                       </td>
                       <td className="px-3 py-2 text-zinc-600">
                         {propertyInterestLabel(lead.propertyInterest) || "-"}
                       </td>
-                      <td className="px-3 py-2 text-zinc-600">{stageLabel(lead.stage)}</td>
-                      <td className="px-3 py-2 text-zinc-600">{lead.priority}</td>
-                      <td className="px-3 py-2 text-zinc-600">{lead.source || "-"}</td>
-                      <td className="px-3 py-2 text-zinc-600">{lead.assignedTo}</td>
-                      <td className="max-w-[200px] truncate px-3 py-2 text-zinc-600">{lead.notes || "-"}</td>
+                      <td className="px-3 py-2 text-zinc-600">
+                        {stageLabel(lead.stage)}
+                      </td>
+                      <td className="px-3 py-2 text-zinc-600">
+                        {lead.priority}
+                      </td>
+                      <td className="px-3 py-2 text-zinc-600">
+                        {lead.source || "-"}
+                      </td>
+                      <td className="px-3 py-2 text-zinc-600">
+                        {lead.assignedTo}
+                      </td>
+                      <td className="max-w-[200px] truncate px-3 py-2 text-zinc-600">
+                        {lead.notes || "-"}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

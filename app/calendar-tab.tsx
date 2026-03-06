@@ -31,7 +31,11 @@ function toDateInputValue(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 function toTimeInputValue(date: Date) {
-  return String(date.getHours()).padStart(2, "0") + ":" + String(date.getMinutes()).padStart(2, "0");
+  return (
+    String(date.getHours()).padStart(2, "0") +
+    ":" +
+    String(date.getMinutes()).padStart(2, "0")
+  );
 }
 
 function buildGoogleCalendarUrl(reminder: Reminder): string {
@@ -59,23 +63,36 @@ export default function CalendarTab() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string>(() => toDateInputValue(new Date()));
-  const [propertyOptions, setPropertyOptions] = useState<{ _id: string; name: string }[]>([]);
-  const [leadOptions, setLeadOptions] = useState<{ _id: string; companyName: string }[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string>(() =>
+    toDateInputValue(new Date()),
+  );
+  const [propertyOptions, setPropertyOptions] = useState<
+    { _id: string; name: string }[]
+  >([]);
+  const [leadOptions, setLeadOptions] = useState<
+    { _id: string; companyName: string }[]
+  >([]);
   const [isPending, startTransition] = useTransition();
 
   const start = getMonthStart(current);
   const end = getMonthEnd(current);
 
   useEffect(() => {
-    listRemindersForRange(start, end).then(setReminders).finally(() => setLoading(false));
+    listRemindersForRange(start, end)
+      .then(setReminders)
+      .finally(() => setLoading(false));
   }, [current.getFullYear(), current.getMonth()]);
 
   useEffect(() => {
     getPropertyOptions().then(setPropertyOptions);
     listLeadsPaginated(1, 500)
       .then((r) =>
-        setLeadOptions(r.leads.map((l) => ({ _id: l._id ?? "", companyName: l.companyName }))),
+        setLeadOptions(
+          r.leads.map((l) => ({
+            _id: l._id ?? "",
+            companyName: l.companyName,
+          })),
+        ),
       )
       .catch(() => {});
   }, []);
@@ -157,7 +174,10 @@ export default function CalendarTab() {
             ← Prev
           </button>
           <span className="min-w-[140px] text-center text-sm font-medium text-zinc-800">
-            {current.toLocaleString("default", { month: "long", year: "numeric" })}
+            {current.toLocaleString("default", {
+              month: "long",
+              year: "numeric",
+            })}
           </span>
           <button
             type="button"
@@ -181,7 +201,10 @@ export default function CalendarTab() {
           <thead>
             <tr className="border-b border-zinc-200 bg-zinc-50">
               {WEEKDAYS.map((day) => (
-                <th key={day} className="px-2 py-2 text-left text-xs font-medium text-zinc-600">
+                <th
+                  key={day}
+                  className="px-2 py-2 text-left text-xs font-medium text-zinc-600"
+                >
                   {day}
                 </th>
               ))}
@@ -195,7 +218,9 @@ export default function CalendarTab() {
                     day !== null
                       ? `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
                       : "";
-                  const dayReminders = dateStr ? remindersByDay[dateStr] ?? [] : [];
+                  const dayReminders = dateStr
+                    ? (remindersByDay[dateStr] ?? [])
+                    : [];
                   return (
                     <td
                       key={di}
@@ -205,7 +230,9 @@ export default function CalendarTab() {
                         {day !== null ? (
                           <>
                             <div className="flex items-center justify-between">
-                              <span className="text-xs font-medium text-zinc-700">{day}</span>
+                              <span className="text-xs font-medium text-zinc-700">
+                                {day}
+                              </span>
                               <button
                                 type="button"
                                 onClick={() => openAdd(dateStr)}
@@ -222,13 +249,19 @@ export default function CalendarTab() {
                                       type="button"
                                       onClick={() => {
                                         setEditingReminder(r);
-                                        setSelectedDate(toDateInputValue(new Date(r.reminderAt)));
+                                        setSelectedDate(
+                                          toDateInputValue(
+                                            new Date(r.reminderAt),
+                                          ),
+                                        );
                                         setModalOpen(true);
                                       }}
                                       className="w-full truncate rounded bg-emerald-100 px-1.5 py-0.5 text-left text-[11px] text-emerald-800 hover:bg-emerald-200"
                                       title={r.notes || r.title}
                                     >
-                                      {new Date(r.reminderAt).toLocaleTimeString("en-GB", {
+                                      {new Date(
+                                        r.reminderAt,
+                                      ).toLocaleTimeString("en-GB", {
                                         hour: "2-digit",
                                         minute: "2-digit",
                                       })}{" "}
@@ -260,7 +293,9 @@ export default function CalendarTab() {
       </div>
 
       {loading && (
-        <div className="text-center text-xs text-zinc-500">Loading reminders…</div>
+        <div className="text-center text-xs text-zinc-500">
+          Loading reminders…
+        </div>
       )}
 
       <Modal
@@ -273,7 +308,12 @@ export default function CalendarTab() {
       >
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           {editingReminder?._id && (
-            <input type="hidden" name="id" value={editingReminder._id} readOnly />
+            <input
+              type="hidden"
+              name="id"
+              value={editingReminder._id}
+              readOnly
+            />
           )}
           <div>
             <label className="text-xs font-medium text-zinc-600">Title *</label>
@@ -287,7 +327,9 @@ export default function CalendarTab() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-zinc-600">Date *</label>
+              <label className="text-xs font-medium text-zinc-600">
+                Date *
+              </label>
               <input
                 name="date"
                 type="date"
@@ -315,7 +357,9 @@ export default function CalendarTab() {
             </div>
           </div>
           <div>
-            <label className="text-xs font-medium text-zinc-600">Lead (optional)</label>
+            <label className="text-xs font-medium text-zinc-600">
+              Lead (optional)
+            </label>
             <select
               name="leadId"
               className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900"
@@ -330,7 +374,9 @@ export default function CalendarTab() {
             </select>
           </div>
           <div>
-            <label className="text-xs font-medium text-zinc-600">Property (optional)</label>
+            <label className="text-xs font-medium text-zinc-600">
+              Property (optional)
+            </label>
             <select
               name="propertyId"
               className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900"
